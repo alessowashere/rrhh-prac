@@ -1,6 +1,12 @@
 <?php
 // index.php - Controlador Frontal
 
+// --- AÑADE ESTAS LÍNEAS PARA VER ERRORES ---
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+// ------------------------------------------
+
 session_start();
 
 // Cargar configuración y clases base
@@ -50,3 +56,4 @@ if (file_exists($controllerFile)) {
 }
 
 ?>
+
