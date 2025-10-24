@@ -23,8 +23,12 @@ class DashboardController extends Controller {
         ];
 
         // 4. Cargar la vista (pasando los datos)
-        // La vista 'dashboard' se cargará dentro de 'template.php'
-        $this->view('dashboard', $data);
+        
+        // --- ¡CORRECCIÓN AQUÍ! ---
+        // La vista de contenido que quieres cargar es 'dashboard/index'
+        // que corresponde al archivo 'views/dashboard/index.php'
+        $this->view('dashboard/index', $data);
+        // --- FIN DE CORRECCIÓN ---
     }
 }
 ?>

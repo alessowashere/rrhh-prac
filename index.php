@@ -1,18 +1,29 @@
 <?php
 // index.php - Controlador Frontal
 
-// --- AÑADE ESTAS LÍNEAS PARA VER ERRORES ---
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+// --- ERRORES DESACTIVADOS (para producción) ---
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
+error_reporting(0);
 // ------------------------------------------
 
 session_start();
 
-// Cargar configuración y clases base
-require_once 'config/config.php';
-require_once 'core/Database.php';
-require_once 'core/Controller.php';
+// --- RUTAS ABSOLUTAS ---
+// Usamos __DIR__ para asegurarnos que las rutas son correctas
+$configPath = __DIR__ . '/config/config.php';
+if(!file_exists($configPath)) die("Error: No se encuentra 'config/config.php'");
+require_once $configPath;
+
+$dbPath = __DIR__ . '/core/Database.php';
+if(!file_exists($dbPath)) die("Error: No se encuentra 'core/Database.php'");
+require_once $dbPath;
+
+$controllerPath = __DIR__ . '/core/Controller.php';
+if(!file_exists($controllerPath)) die("Error: No se encuentra 'core/Controller.php'");
+require_once $controllerPath;
+// --- FIN RUTAS ABSOLUTAS ---
+
 
 // Gestión de rutas (Router simple)
 $controllerName = 'DashboardController';
@@ -25,7 +36,8 @@ if (isset($_GET['c'])) {
 }
 
 // Verificar si el archivo del controlador existe
-$controllerFile = 'controllers/' . $controllerName . '.php';
+$controllerFile = __DIR__ . '/controllers/' . $controllerName . '.php'; // Usar __DIR__
+
 if (file_exists($controllerFile)) {
     require_once $controllerFile;
     
@@ -43,14 +55,18 @@ if (file_exists($controllerFile)) {
         $controller->$methodName($params);
 
     } else {
-        echo "Error: Método no encontrado.";
-        // Opcional: Redirigir a una página de error 404
+        // En producción, es mejor redirigir a un error 404
+        die("Error 404: Método no encontrado.");
     }
 } else {
-    echo "Error: Controlador no encontrado.";
-    // Opcional: Redirigir a una página de error 404
-    // Por ahora, cargamos el dashboard por defecto
-    require_once 'controllers/DashboardController.php';
+    // Fallback al Dashboard
+    $defaultControllerFile = __DIR__ . '/controllers/DashboardController.php';
+    
+    if(!file_exists($defaultControllerFile)) {
+            die("ERROR FATAL: No se encuentra 'DashboardController.php'.");
+    }
+    
+    require_once $defaultControllerFile;
     $controller = new DashboardController();
     $controller->index();
 }
