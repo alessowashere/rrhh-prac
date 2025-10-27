@@ -179,31 +179,31 @@ class ReclutamientoModel {
         try {
             // 1. Actualizar la tabla de Resultados
             $sql_res = "UPDATE ResultadosEntrevista SET
-                            campo_1_nombre = ?, campo_1_nota = ?,
-                            campo_2_nombre = ?, campo_2_nota = ?,
-                            campo_3_nombre = ?, campo_3_nota = ?,
-                            campo_4_nombre = ?, campo_4_nota = ?,
-                            campo_5_nombre = ?, campo_5_nota = ?,
-                            campo_6_nombre = ?, campo_6_nota = ?,
-                            campo_7_nombre = ?, campo_7_nota = ?,
-                            campo_8_nombre = ?, campo_8_nota = ?,
-                            campo_9_nombre = ?, campo_9_nota = ?,
-                            campo_10_nombre = ?, campo_10_nota = ?,
+                            campo_1_nombre = ?, campo_1_nota = ?, campo_1_peso = ?,
+                            campo_2_nombre = ?, campo_2_nota = ?, campo_2_peso = ?,
+                            campo_3_nombre = ?, campo_3_nota = ?, campo_3_peso = ?,
+                            campo_4_nombre = ?, campo_4_nota = ?, campo_4_peso = ?,
+                            campo_5_nombre = ?, campo_5_nota = ?, campo_5_peso = ?,
+                            campo_6_nombre = ?, campo_6_nota = ?, campo_6_peso = ?,
+                            campo_7_nombre = ?, campo_7_nota = ?, campo_7_peso = ?,
+                            campo_8_nombre = ?, campo_8_nota = ?, campo_8_peso = ?,
+                            campo_9_nombre = ?, campo_9_nota = ?, campo_9_peso = ?,
+                            campo_10_nombre = ?, campo_10_nota = ?, campo_10_peso = ?,
                             comentarios_adicionales = ?
                         WHERE proceso_id = ?";
             
             $stmt_res = $this->pdo->prepare($sql_res);
             $stmt_res->execute([
-                $data['campo_1_nombre'], $data['campo_1_nota'],
-                $data['campo_2_nombre'], $data['campo_2_nota'],
-                $data['campo_3_nombre'], $data['campo_3_nota'],
-                $data['campo_4_nombre'], $data['campo_4_nota'],
-                $data['campo_5_nombre'], $data['campo_5_nota'],
-                $data['campo_6_nombre'], $data['campo_6_nota'],
-                $data['campo_7_nombre'], $data['campo_7_nota'],
-                $data['campo_8_nombre'], $data['campo_8_nota'],
-                $data['campo_9_nombre'], $data['campo_9_nota'],
-                $data['campo_10_nombre'], $data['campo_10_nota'],
+                $data['campo_1_nombre'], $data['campo_1_nota'], $data['campo_1_peso'],
+                $data['campo_2_nombre'], $data['campo_2_nota'], $data['campo_2_peso'],
+                $data['campo_3_nombre'], $data['campo_3_nota'], $data['campo_3_peso'],
+                $data['campo_4_nombre'], $data['campo_4_nota'], $data['campo_4_peso'],
+                $data['campo_5_nombre'], $data['campo_5_nota'], $data['campo_5_peso'],
+                $data['campo_6_nombre'], $data['campo_6_nota'], $data['campo_6_peso'],
+                $data['campo_7_nombre'], $data['campo_7_nota'], $data['campo_7_peso'],
+                $data['campo_8_nombre'], $data['campo_8_nota'], $data['campo_8_peso'],
+                $data['campo_9_nombre'], $data['campo_9_nota'], $data['campo_9_peso'],
+                $data['campo_10_nombre'], $data['campo_10_nota'], $data['campo_10_peso'],
                 $data['comentarios'],
                 $data['proceso_id']
             ]);
@@ -224,7 +224,6 @@ class ReclutamientoModel {
             throw new Exception("Error al actualizar entrevista: " . $e->getMessage());
         }
     }
-
     /**
      * Cambia el estado de un ProcesoReclutamiento.
      */
