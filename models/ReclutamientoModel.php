@@ -254,4 +254,15 @@ class ReclutamientoModel {
         $stmt->execute([$proceso_id]);
         return $stmt->fetchAll();
     }
+    /**
+     * Devuelve un array con los proceso_id que ya tienen una FICHA_CALIFICACION.
+     */
+    public function getProcesosConFicha() {
+        $sql = "SELECT DISTINCT proceso_id 
+                FROM Documentos 
+                WHERE tipo_documento = 'FICHA_CALIFICACION' AND proceso_id IS NOT NULL";
+        $stmt = $this->pdo->query($sql);
+        // Usamos PDO::FETCH_COLUMN para obtener solo la columna proceso_id en un array simple
+        return $stmt->fetchAll(PDO::FETCH_COLUMN, 0); 
+    }
 }

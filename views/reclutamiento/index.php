@@ -96,10 +96,21 @@ if (isset($_SESSION['mensaje_error'])) {
                                 </span>
                             </td>
                             <td>
-                                <?php if ($estado == 'En Evaluación' || $estado == 'Pendiente'): ?>
-                                <a href="index.php?c=reclutamiento&m=evaluar&id=<?php echo $proceso['proceso_id']; ?>" class="btn btn-sm btn-info" title="Evaluar">
-                                    <i class="bi bi-pencil-square"></i>
-                                </a>
+                                <?php 
+                                // Variable para saber si este proceso ya tiene ficha
+                                $tieneFicha = in_array($proceso['proceso_id'], $data['procesos_con_ficha']);
+                                
+                                if ($estado == 'En Evaluación' || $estado == 'Pendiente'): 
+                                    // Si tiene ficha, mostrar "Ver/Editar", si no, "Evaluar"
+                                    if ($tieneFicha): ?>
+                                        <a href="index.php?c=reclutamiento&m=evaluar&id=<?php echo $proceso['proceso_id']; ?>" class="btn btn-sm btn-warning" title="Ver/Editar Evaluación">
+                                            <i class="bi bi-eye-fill"></i> <i class="bi bi-pencil-fill"></i>
+                                        </a>
+                                    <?php else: ?>
+                                        <a href="index.php?c=reclutamiento&m=evaluar&id=<?php echo $proceso['proceso_id']; ?>" class="btn btn-sm btn-info" title="Evaluar">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                                 
                                 <?php if ($estado != 'Aceptado'): ?>

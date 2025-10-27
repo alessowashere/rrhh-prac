@@ -21,10 +21,13 @@ class ReclutamientoController extends Controller {
     public function index() {
         // Obtenemos todos los procesos (activos, aceptados, etc.)
         $procesos = $this->reclutamientoModel->getTodosLosProcesos();
+        // OBTENER IDs con ficha
+        $procesosConFicha = $this->reclutamientoModel->getProcesosConFicha(); 
         
         $data = [
             'titulo' => 'Gestión de Reclutamiento',
-            'procesos' => $procesos
+            'procesos' => $procesos,
+            'procesos_con_ficha' => $procesosConFicha // Pasar a la vista
         ];
 
         $this->view('reclutamiento/index', $data);
