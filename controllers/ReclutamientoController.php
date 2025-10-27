@@ -1,19 +1,17 @@
 <?php
 // controllers/ReclutamientoController.php
-// (Ya no se necesita el 'require_once' de Composer aquí, 
-//  porque ahora está en index.php)
 
 class ReclutamientoController extends Controller {
     
     private $reclutamientoModel;
-    private $practicanteModel; // Necesario para guardar documentos
+    private $practicanteModel; 
 
     public function __construct() {
         $this->reclutamientoModel = $this->model('ReclutamientoModel');
-        // Asegúrate de que PracticanteModel exista en tu carpeta models/
-        // (En tus archivos se llama PracticanteModel.php, así que está bien)
         $this->practicanteModel = $this->model('PracticanteModel');
     }
+
+    // ... (Las funciones index, nuevo, guardar, evaluar, guardarEvaluacion, actualizarEstado no cambian) ...
 
     /**
      * Página principal. Muestra TODOS los procesos
@@ -211,8 +209,6 @@ class ReclutamientoController extends Controller {
 
     /**
      * Muestra el formulario para calificar una entrevista.
-     * Busca los documentos del proceso.
-     * (Lógica de inyección de promedio ELIMINADA - ahora la hace el JS)
      */
     public function evaluar() {
         $proceso_id = (int)($_GET['id'] ?? 0);
@@ -230,12 +226,12 @@ class ReclutamientoController extends Controller {
             exit;
         }
 
-        // ¡NUEVO! Obtener los documentos
+        // Obtener los documentos
         $documentos = $this->reclutamientoModel->getDocumentosPorProceso($proceso_id);
         
         $data = [
             'titulo' => 'Evaluar Entrevista',
-            'proceso' => $proceso, // Se pasa el proceso limpio
+            'proceso' => $proceso, 
             'documentos' => $documentos
         ];
 
@@ -245,7 +241,7 @@ class ReclutamientoController extends Controller {
     /**
      * Guarda las notas de la entrevista (ResultadosEntrevista)
      * y actualiza el puntaje final en ProcesosReclutamiento.
-     * --- ¡ESTA FUNCIÓN AHORA MARCA EL PROCESO COMO 'Evaluado'! ---
+     * Marca el proceso como 'Evaluado'.
      */
     public function guardarEvaluacion() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -265,7 +261,7 @@ class ReclutamientoController extends Controller {
             for ($i = 1; $i <= 10; $i++) {
                 $nombre_key = 'campo_' . $i . '_nombre';
                 $nota_key = 'campo_' . $i . '_nota';
-                $peso_key = 'campo_' . $i . '_peso'; // <-- Obtenemos el peso
+                $peso_key = 'campo_' . $i . '_peso'; 
 
                 $datosEntrevista[$nombre_key] = trim($_POST[$nombre_key]) ?? 'Criterio ' . $i;
                 
@@ -276,7 +272,6 @@ class ReclutamientoController extends Controller {
                 $datosEntrevista[$peso_key] = ($peso_val !== '' && $peso_val !== null) ? (float)$peso_val : null;
 
 
-                // Solo calculamos si tenemos una nota Y un peso
                 if ($datosEntrevista[$nota_key] !== null && $datosEntrevista[$nota_key] >= 0 && $datosEntrevista[$peso_key] !== null && $datosEntrevista[$peso_key] > 0) {
                     
                     $suma_ponderada += $datosEntrevista[$nota_key] * $datosEntrevista[$peso_key];
@@ -290,14 +285,10 @@ class ReclutamientoController extends Controller {
 
             // Llamar al modelo
             try {
-                // 1. Usamos el método existente para actualizar las notas
                 $this->reclutamientoModel->actualizarEntrevista($datosEntrevista);
-                
-                // 2. Usamos un nuevo método para guardar la fecha
                 $this->reclutamientoModel->actualizarFechaEntrevista($proceso_id, $datosEntrevista['fecha_entrevista']);
                 
-                // 3. *** ¡CAMBIO CLAVE! ***
-                // Al guardar la evaluación, marcamos el proceso como 'Evaluado'
+                // *** Marca el proceso como 'Evaluado' ***
                 $this->reclutamientoModel->cambiarEstadoProceso($proceso_id, 'Evaluado');
                 
                 $_SESSION['mensaje_exito'] = 'Evaluación guardada y proceso marcado como "Evaluado".';
@@ -322,8 +313,6 @@ class ReclutamientoController extends Controller {
         $proceso_id = (int)($_GET['id'] ?? 0);
         $nuevo_estado = trim($_GET['estado'] ?? '');
 
-        // Validar que el estado sea uno de los permitidos
-        // *** 'Evaluado' NO está aquí, porque solo se accede a él mediante guardarEvaluacion ***
         $estados_validos = ['Aceptado', 'Rechazado', 'En Evaluación', 'Pendiente']; 
         
         if ($proceso_id > 0 && in_array($nuevo_estado, $estados_validos)) {
@@ -343,6 +332,7 @@ class ReclutamientoController extends Controller {
 
     /**
      * Muestra la revisión de una evaluación ya completada (solo lectura).
+     * *** Ahora también muestra el form para subir la ficha ***
      */
     public function revisar() {
         $proceso_id = (int)($_GET['id'] ?? 0);
@@ -352,7 +342,6 @@ class ReclutamientoController extends Controller {
             exit;
         }
 
-        // Usamos la misma función que evaluar para obtener los datos
         $proceso = $this->reclutamientoModel->getProcesoCompleto($proceso_id); 
 
         if (!$proceso) {
@@ -361,23 +350,21 @@ class ReclutamientoController extends Controller {
             exit;
         }
 
-        // Obtener documentos (incluida la ficha)
         $documentos = $this->reclutamientoModel->getDocumentosPorProceso($proceso_id);
 
         $data = [
             'titulo' => 'Revisar Evaluación',
             'proceso' => $proceso,
             'documentos' => $documentos,
-            'es_revision' => true // Indicador para la vista
+            'es_revision' => true 
         ];
 
-        // Carga la vista 'revisar.php'
         $this->view('reclutamiento/revisar', $data); 
     }
     
     /**
      * Sube la ficha de evaluación firmada.
-     * --- ¡ESTA FUNCIÓN AHORA SOLO SUBE EL ARCHIVO! ---
+     * *** REDIRECCIÓN CORREGIDA ***
      */
     public function subirFicha() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -393,19 +380,12 @@ class ReclutamientoController extends Controller {
                 $nombre_archivo = $practicante_id . '_FICHA_EVALUACION_' . $proceso_id . '.pdf';
                 $ruta_destino = $ruta_base . $nombre_archivo;
                 
-                // === ¡Importante! ===
-                // Si move_uploaded_file falla, es casi seguro que es un problema de permisos
-                // en la carpeta /uploads/documentos/ de tu servidor.
                 if (move_uploaded_file($archivo['tmp_name'], $ruta_destino)) {
                     $url_relativa = 'uploads/documentos/' . $nombre_archivo;
                     try {
                         // 1. Guardar en la BD
                         $this->reclutamientoModel->addDocumento($practicante_id, $proceso_id, 'FICHA_CALIFICACION', $url_relativa);
-
-                        // 2. *** ¡LÍNEA ELIMINADA! ***
-                        // Ya no cambia el estado aquí.
-                        // $this->reclutamientoModel->cambiarEstadoProceso($proceso_id, 'Evaluado'); 
-
+                        
                         $_SESSION['mensaje_exito'] = 'Ficha firmada subida exitosamente.';
                     } catch (Exception $e) {
                         $_SESSION['mensaje_error'] = 'Error al guardar la ficha en la BD: ' . $e->getMessage();
@@ -417,8 +397,9 @@ class ReclutamientoController extends Controller {
                 $_SESSION['mensaje_error'] = 'Datos incompletos o error en la subida del archivo.';
             }
 
-            // Redirige de vuelta a la misma página de evaluación
-            header('Location: index.php?c=reclutamiento&m=evaluar&id=' . $proceso_id);
+            // *** ¡CAMBIO IMPORTANTE! ***
+            // Redirige de vuelta a la página de REVISIÓN
+            header('Location: index.php?c=reclutamiento&m=revisar&id=' . $proceso_id);
             exit;
         }
         header('Location: index.php?c=reclutamiento');

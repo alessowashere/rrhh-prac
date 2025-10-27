@@ -5,10 +5,10 @@ $documentos = $data['documentos'] ?? [];
 
 // --- Buscar Documentos ---
 $url_pdf_principal = '';
-$url_ficha_firmada = '';
+// $url_ficha_firmada = ''; // <-- ELIMINADO DE AQUÍ
 foreach ($documentos as $doc) {
     if ($doc['tipo_documento'] == 'CONSOLIDADO') { $url_pdf_principal = $doc['url_archivo']; }
-    if ($doc['tipo_documento'] == 'FICHA_CALIFICACION') { $url_ficha_firmada = $doc['url_archivo']; }
+    // if ($doc['tipo_documento'] == 'FICHA_CALIFICACION') { $url_ficha_firmada = $doc['url_archivo']; } // <-- ELIMINADO DE AQUÍ
 }
 // Fallback a CV
 if (empty($url_pdf_principal)) {
@@ -18,12 +18,11 @@ if (empty($url_pdf_principal)) {
 }
 
 // --- Fecha de Entrevista ---
-// Si ya tiene una fecha guardada, úsala. Si no, usa la fecha de hoy.
 $fecha_entrevista = $proceso['fecha_entrevista'] ?? date('Y-m-d');
 
 // --- Tipo de Práctica (para el JS) ---
 $tipo_practica = $proceso['tipo_practica'] ?? 'PREPROFESIONAL';
-$promedio_general_val = (float)($proceso['promedio_general'] ?? 0); // <--- AÑADE ESTA LÍNEA
+$promedio_general_val = (float)($proceso['promedio_general'] ?? 0); 
 ?>
 
 <style>
@@ -234,28 +233,9 @@ if (isset($_SESSION['mensaje_error'])) {
                     </div>
                 </div>
 
-                <div class="card mt-4 no-imprimir">
-                    <div class="card-header"><h5 class="mb-0">Ficha Firmada</h5></div>
-                    <div class="card-body">
-                        <?php if (!empty($url_ficha_firmada)): ?>
-                            <div class="alert alert-success text-center">
-                                <i class="bi bi-check-circle-fill"></i> Ficha Subida
-                                <a href="<?php echo htmlspecialchars($url_ficha_firmada); ?>" target="_blank" class="btn btn-sm btn-outline-success w-100 mt-2">Ver Ficha</a>
-                            </div>
-                        <?php else: ?>
-                            <p><small>Subir la ficha firmada como constancia (PDF).</small></p>
-                            <form action="index.php?c=reclutamiento&m=subirFicha" method="POST" enctype="multipart/form-data">
-                                <input type="hidden" name="proceso_id" value="<?php echo $proceso['proceso_id']; ?>">
-                                <input type="hidden" name="practicante_id" value="<?php echo $proceso['practicante_id']; ?>">
-                                <div class="mb-2">
-                                     <input type="file" class="form-control form-control-sm" name="ficha_firmada" accept=".pdf" required>
-                                </div>
-                                <button type="submit" class="btn btn-sm btn-outline-success w-100">Subir Ficha</button>
-                            </form>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div> <div class="col-lg-8 mb-4">
+                </div> 
+            
+            <div class="col-lg-8 mb-4">
                 <div class="card">
                     <div class="card-header">
                         <div class="row align-items-center">
@@ -346,7 +326,9 @@ if (isset($_SESSION['mensaje_error'])) {
                                 <strong>Total Peso: <span id="total-peso">0</span>%</strong>
                                 <div id="peso-error" class="text-danger small d-none">El peso debe sumar 100%</div>
                             </div>
-                        </div> <hr class="my-4">
+                        </div> 
+                        
+                        <hr class="my-4">
                         
                         <div class="mb-3">
                             <label for="comentarios_adicionales" class="form-label"><strong>Comentarios Adicionales</strong></label>
@@ -369,8 +351,14 @@ if (isset($_SESSION['mensaje_error'])) {
                             </div>
                         </div>
 
-                    </div> </div> </div> </div> </form>
-</div> <div class="modal fade no-imprimir" id="modalVerPDF" tabindex="-1" aria-labelledby="modalVerPDFLabel" aria-hidden="true">
+                    </div> 
+                </div> 
+            </div> 
+        </div> 
+    </form>
+</div> 
+
+<div class="modal fade no-imprimir" id="modalVerPDF" tabindex="-1" aria-labelledby="modalVerPDFLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-fullscreen-lg-down" style="height: 95vh;">
     <div class="modal-content" style="height: 100%;">
       <div class="modal-header">
@@ -387,6 +375,7 @@ if (isset($_SESSION['mensaje_error'])) {
     </div>
   </div>
 </div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     
