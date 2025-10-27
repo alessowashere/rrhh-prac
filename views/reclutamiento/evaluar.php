@@ -445,9 +445,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // REVISADO: Bucle explícito para índices 6, 7, 8, 9
         for (let i = 6; i < 10; i++) { 
             if (todasLasFilas[i]) {
-                todasLasFilas[i].style.display = 'none'; // OCULTAR la fila <tr>
+                // INTENTO MÁS FUERTE DE OCULTAR:
+                todasLasFilas[i].style.display = 'none'; 
+                todasLasFilas[i].style.visibility = 'collapse'; // Específico para tablas
+                todasLasFilas[i].style.height = '0px';          // Sin altura
+                todasLasFilas[i].style.padding = '0';           // Sin relleno
+                todasLasFilas[i].style.border = 'none';         // Sin borde
             }
-            // REVISADO: Limpiar inputs aunque la fila esté oculta
+            // Limpiar inputs igualmente
             if(inputNombres[i]) inputNombres[i].value = ''; 
             if(inputPesos[i]) inputPesos[i].value = ''; 
             if(inputNotas[i]) inputNotas[i].value = ''; 

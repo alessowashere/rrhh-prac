@@ -343,7 +343,44 @@ class ReclutamientoController extends Controller {
     /**
      * Sube la ficha de evaluación firmada.
      */
-    public function subirFicha() {
+    /**
+ * Muestra la revisión de una evaluación ya completada (solo lectura).
+ */
+    public function revisar() {
+        $proceso_id = (int)($_GET['id'] ?? 0);
+
+        if ($proceso_id === 0) {
+            header('Location: index.php?c=reclutamiento');
+            exit;
+        }
+
+        // Usamos la misma función que evaluar para obtener los datos
+        $proceso = $this->reclutamientoModel->getProcesoCompleto($proceso_id); 
+
+        if (!$proceso) {
+            $_SESSION['mensaje_error'] = 'Proceso no encontrado.';
+            header('Location: index.php?c=reclutamiento');
+            exit;
+        }
+
+        // Obtener documentos (incluida la ficha)
+        $documentos = $this->reclutamientoModel->getDocumentosPorProceso($proceso_id);
+
+        $data = [
+            'titulo' => 'Revisar Evaluación',
+            'proceso' => $proceso,
+            'documentos' => $documentos,
+            'es_revision' => true // Indicador para la vista
+        ];
+
+        // *** IMPORTANTE: Necesitas crear esta nueva vista 'revisar.php' ***
+        // Puedes copiar 'evaluar.php' y quitarle el form, inputs editables, botones de guardar/subir
+        // y el script de cálculo. Solo muestra los datos y el enlace a la ficha.
+        $this->view('reclutamiento/revisar', $data); 
+        // Si prefieres, puedes reutilizar 'evaluar.php' y añadirle `if($data['es_revision'])` 
+        // para ocultar/deshabilitar campos, pero una vista separada es más limpia.
+    }
+        public function subirFicha() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $proceso_id = (int)$_POST['proceso_id'];
             $practicante_id = (int)$_POST['practicante_id'];
@@ -362,7 +399,11 @@ class ReclutamientoController extends Controller {
                     try {
                         // Guardar en la BD
                         $this->reclutamientoModel->addDocumento($practicante_id, $proceso_id, 'FICHA_CALIFICACION', $url_relativa);
-                        $_SESSION['mensaje_exito'] = 'Ficha firmada subida exitosamente.';
+
+                        // *** NUEVA LÍNEA: Cambiar estado a Evaluado ***
+                        $this->reclutamientoModel->cambiarEstadoProceso($proceso_id, 'Evaluado'); 
+
+                        $_SESSION['mensaje_exito'] = 'Ficha firmada subida y proceso marcado como Evaluado.';
                     } catch (Exception $e) {
                         $_SESSION['mensaje_error'] = 'Error al guardar ficha: ' . $e->getMessage();
                     }

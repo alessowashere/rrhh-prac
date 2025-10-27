@@ -97,35 +97,43 @@ if (isset($_SESSION['mensaje_error'])) {
                             </td>
                             <td>
                                 <?php 
-                                // Variable para saber si este proceso ya tiene ficha
                                 $tieneFicha = in_array($proceso['proceso_id'], $data['procesos_con_ficha']);
-                                
-                                if ($estado == 'En Evaluación' || $estado == 'Pendiente'): 
-                                    // Si tiene ficha, mostrar "Ver/Editar", si no, "Evaluar"
-                                    if ($tieneFicha): ?>
+                                $estadoActual = $proceso['estado_proceso']; // Guardamos el estado actual
+
+                                // *** NUEVA LÓGICA PARA EL BOTÓN EVALUAR/REVISAR ***
+                                if ($estadoActual == 'Evaluado'): ?>
+                                    <a href="index.php?c=reclutamiento&m=revisar&id=<?php echo $proceso['proceso_id']; ?>" class="btn btn-sm btn-success" title="Revisar Evaluación">
+                                        <i class="bi bi-search"></i> Revisar
+                                    </a>
+                                <?php elseif ($estadoActual == 'En Evaluación' || $estadoActual == 'Pendiente'): 
+                                    // Mantenemos la lógica anterior para estos estados
+                                    if ($tieneFicha): // Aunque ahora no debería ocurrir si se marca como Evaluado ?>
                                         <a href="index.php?c=reclutamiento&m=evaluar&id=<?php echo $proceso['proceso_id']; ?>" class="btn btn-sm btn-warning" title="Ver/Editar Evaluación">
                                             <i class="bi bi-eye-fill"></i> <i class="bi bi-pencil-fill"></i>
                                         </a>
                                     <?php else: ?>
                                         <a href="index.php?c=reclutamiento&m=evaluar&id=<?php echo $proceso['proceso_id']; ?>" class="btn btn-sm btn-info" title="Evaluar">
-                                            <i class="bi bi-pencil-square"></i>
+                                            <i class="bi bi-pencil-square"></i> Evaluar
                                         </a>
                                     <?php endif; ?>
-                                <?php endif; ?>
-                                
-                                <?php if ($estado != 'Aceptado'): ?>
+                                <?php endif; 
+                                // *** FIN NUEVA LÓGICA ***
+
+                                // Los otros botones (Aceptar, Rechazar, Pendiente) se mantienen igual
+                                // (Ajusta su visibilidad según necesites para el estado 'Evaluado')
+                                if ($estadoActual != 'Aceptado'): ?>
                                 <a href="index.php?c=reclutamiento&m=actualizarEstado&id=<?php echo $proceso['proceso_id']; ?>&estado=Aceptado" class="btn btn-sm btn-success" title="Aceptar" onclick="return confirm('¿Está seguro de ACEPTAR este candidato?');">
                                     <i class="bi bi-check-lg"></i>
                                 </a>
                                 <?php endif; ?>
                                 
-                                <?php if ($estado != 'Rechazado'): ?>
+                                <?php if ($estadoActual != 'Rechazado'): ?>
                                 <a href="index.php?c=reclutamiento&m=actualizarEstado&id=<?php echo $proceso['proceso_id']; ?>&estado=Rechazado" class="btn btn-sm btn-danger" title="Rechazar" onclick="return confirm('¿Está seguro de RECHAZAR este candidato?');">
                                     <i class="bi bi-x-lg"></i>
                                 </a>
                                 <?php endif; ?>
 
-                                <?php if ($estado == 'Rechazado' || $estado == 'En Evaluación'): ?>
+                                <?php if ($estadoActual == 'Rechazado' || $estadoActual == 'En Evaluación'): ?>
                                 <a href="index.php?c=reclutamiento&m=actualizarEstado&id=<?php echo $proceso['proceso_id']; ?>&estado=Pendiente" class="btn btn-sm btn-secondary" title="Mover a Pendiente (Próximo Proceso)" onclick="return confirm('¿Mover a PENDIENTE para un próximo proceso?');">
                                     <i class="bi bi-clock-history"></i>
                                 </a>
