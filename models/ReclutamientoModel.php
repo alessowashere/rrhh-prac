@@ -132,19 +132,18 @@ class ReclutamientoModel {
     /**
      * NUEVO: Agrega un documento a la tabla Documentos.
      */
-    /**
-     * NUEVO: Agrega un documento a la tabla Documentos.
-     * ¡MODIFICADO! Ahora guarda también el proceso_id.
-     */
     public function addDocumento(int $practicante_id, int $proceso_id, string $tipo_documento, string $url_archivo) {
+        // La tabla 'Documentos' no tiene 'proceso_id'
+        // Lo vincularemos solo al practicante por ahora.
+        // Si quieres vincularlo al proceso, debes alterar la tabla 'Documentos'.
         
-        // El convenio_id y adenda_id se dejan NULL
-        $sql = "INSERT INTO Documentos (practicante_id, proceso_id, tipo_documento, url_archivo, convenio_id, adenda_id) 
-                VALUES (?, ?, ?, ?, NULL, NULL)";
+        $sql = "INSERT INTO Documentos (practicante_id, tipo_documento, url_archivo) 
+                VALUES (?, ?, ?)";
+        
+        // (Para vincular al convenio/adenda, esos campos deben ser NULL)
         
         $stmt = $this->pdo->prepare($sql);
-        // Añadimos $proceso_id a la lista de ejecución
-        return $stmt->execute([$practicante_id, $proceso_id, $tipo_documento, $url_archivo]);
+        return $stmt->execute([$practicante_id, $tipo_documento, $url_archivo]);
     }
 
 
@@ -226,13 +225,26 @@ class ReclutamientoModel {
             throw new Exception("Error al actualizar entrevista: " . $e->getMessage());
         }
     }
-    
+
+    /**
+     * Cambia el estado de un ProcesoReclutamiento.
+     */
+    public function cambiarEstadoProceso(int $proceso_id, string $nuevo_estado) {
+        // (Este método ya funciona para los nuevos estados 'Pendiente')
+        $sql = "UPDATE ProcesosReclutamiento SET estado_proceso = ? WHERE proceso_id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([$nuevo_estado, $proceso_id]);
+    }
+    public function actualizarFechaEntrevista(int $proceso_id, string $fecha) {
+        $sql = "UPDATE ProcesosReclutamiento SET fecha_entrevista = ? WHERE proceso_id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([$fecha, $proceso_id]);
+    }
     public function getDocumentosPorProceso(int $proceso_id) {
         $sql = "SELECT tipo_documento, url_archivo 
                 FROM Documentos 
                 WHERE proceso_id = ? 
                 ORDER BY 
-                    -- Ordena el consolidado primero, si existe
                     CASE 
                         WHEN tipo_documento = 'CONSOLIDADO' THEN 1
                         WHEN tipo_documento = 'FICHA_CALIFICACION' THEN 3
@@ -243,15 +255,5 @@ class ReclutamientoModel {
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([$proceso_id]);
         return $stmt->fetchAll();
-    }
-
-    /**
-     * Cambia el estado de un ProcesoReclutamiento.
-     */
-    public function cambiarEstadoProceso(int $proceso_id, string $nuevo_estado) {
-        // (Este método ya funciona para los nuevos estados 'Pendiente')
-        $sql = "UPDATE ProcesosReclutamiento SET estado_proceso = ? WHERE proceso_id = ?";
-        $stmt = $this->pdo->prepare($sql);
-        return $stmt->execute([$nuevo_estado, $proceso_id]);
     }
 }

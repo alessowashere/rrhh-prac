@@ -1,16 +1,24 @@
 <?php
 // index.php - Controlador Frontal
 
-// --- ERRORES DESACTIVADOS (para producción) ---
-ini_set('display_errors', 0);
-ini_set('display_startup_errors', 0);
-error_reporting(0);
+// --- ERRORES ACTIVADOS (para depuración) ---
+// (Lo mantenemos activado mientras probamos)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 // ------------------------------------------
 
 session_start();
 
+// --- ¡¡¡AQUÍ ESTÁ LA LÍNEA CORREGIDA!!! ---
+// Cargar el autoloader de Composer PRIMERO
+// Esto hace que las clases de 'vendor' (como FPDI) estén disponibles globalmente.
+require_once __DIR__ . '/vendor/autoload.php';
+// ------------------------------------------
+
+
 // --- RUTAS ABSOLUTAS ---
-// Usamos __DIR__ para asegurarnos que las rutas son correctas
+// (El resto de tus require_once van DESPUÉS)
 $configPath = __DIR__ . '/config/config.php';
 if(!file_exists($configPath)) die("Error: No se encuentra 'config/config.php'");
 require_once $configPath;
@@ -72,4 +80,3 @@ if (file_exists($controllerFile)) {
 }
 
 ?>
-
