@@ -345,7 +345,7 @@ if (isset($_SESSION['mensaje_error'])) {
                         
                         <div class="mb-3">
                             <label for="comentarios_adicionales" class="form-label"><strong>Comentarios Adicionales</strong></label>
-                            <textarea class="form-control print-textarea" id="comentarios_adicionales" name="comentarios_adicionales" rows="4"><?php echo htmlspecialchars($proceso['comentarios_adicionales']); ?></textarea>
+                            <textarea class="form-control print-textarea" id="comentarios_adicionales" name="comentarios_adicionales" rows="4"><?php echo htmlspecialchars($proceso['comentarios_adicionales'] ?? ''); ?></textarea>
                         </div>
                         
                         <div class="d-flex justify-content-end no-imprimir">
