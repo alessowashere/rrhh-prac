@@ -228,4 +228,60 @@ class ConvenioModel {
             throw new Exception("Error al finalizar el convenio: " . $e->getMessage());
         }
     }
+    
+    /**
+     * Cuenta convenios 'Activos' cuyo período 'Activo'
+     * vence en los próximos X días.
+     */
+    public function contarConveniosPorVencer(int $dias = 30) {
+        $sql = "SELECT COUNT(DISTINCT c.convenio_id) AS total 
+                FROM Convenios c
+                JOIN PeriodosConvenio pc ON c.convenio_id = pc.convenio_id
+                WHERE c.estado_convenio = 'Vigente'
+                  AND pc.estado_periodo = 'Activo'
+                  AND pc.fecha_fin BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$dias]);
+        return $stmt->fetch()['total'] ?? 0;
+    }
+    
+    /**
+     * NUEVO: Obtiene la LISTA de convenios que vencen pronto.
+     */
+    public function getConveniosPorVencer(int $dias = 30) {
+        $sql = "SELECT DISTINCT p.practicante_id, p.nombres, p.apellidos, pc.fecha_fin, c.convenio_id
+                FROM Convenios c
+                JOIN PeriodosConvenio pc ON c.convenio_id = pc.convenio_id
+                JOIN Practicantes p ON c.practicante_id = p.practicante_id
+                WHERE c.estado_convenio = 'Vigente'
+                  AND pc.estado_periodo = 'Activo'
+                  AND pc.fecha_fin BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
+                ORDER BY pc.fecha_fin ASC";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$dias]);
+        return $stmt->fetchAll();
+    }
+    
+    /**
+     * NUEVO: Obtiene los últimos convenios creados (para 'Actividad Reciente').
+     */
+    public function getUltimosConveniosCreados(int $limite = 5) {
+        $sql = "SELECT c.convenio_id, c.tipo_practica, p.practicante_id, p.nombres, p.apellidos, a.nombre AS area_nombre
+                FROM Convenios c
+                JOIN Practicantes p ON c.practicante_id = p.practicante_id
+                -- Busca el primer período (el más reciente) de ese convenio
+                LEFT JOIN PeriodosConvenio pc ON pc.convenio_id = c.convenio_id
+                                             AND pc.periodo_id = (SELECT MAX(periodo_id) 
+                                                                  FROM PeriodosConvenio 
+                                                                  WHERE convenio_id = c.convenio_id)
+                LEFT JOIN Areas a ON pc.area_id = a.area_id
+                ORDER BY c.convenio_id DESC
+                LIMIT ?";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$limite]);
+        return $stmt->fetchAll();
+    }
 }

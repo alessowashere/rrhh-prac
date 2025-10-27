@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Practicantes</title>
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         body {
@@ -35,6 +33,10 @@
         .nav-link.active {
             color: #0d6efd;
             font-weight: 500;
+            background-color: #e9ecef; /* Fondo sutil para el activo */
+        }
+        .nav-link:hover {
+            background-color: #f8f9fa;
         }
         .nav-link .bi {
             margin-right: 8px;
@@ -46,43 +48,43 @@
     </style>
 </head>
 <body>
-
-    <!-- Header (Navbar superior) -->
+<?php
+// === NUEVO: Lógica para la navegación activa ===
+// Obtener el controlador actual de la URL, default 'dashboard'
+$pagina_actual = $_GET['c'] ?? 'dashboard';
+?>
     <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
         <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6" href="#">Gestión Practicantes</a>
         <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
-        <!-- (Puedes añadir un buscador o un menú de usuario aquí) -->
-    </header>
+        </header>
 
     <div class="container-fluid">
         <div class="row">
-            <!-- Sidebar (Menú Lateral) -->
             <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
                 <div class="position-sticky pt-3 sidebar-sticky">
                     <ul class="nav flex-column">
                         <li class="nav-item">
-                            <!-- (El 'active' debe ser dinámico) -->
-                            <a class="nav-link active" aria-current="page" href="index.php?c=dashboard">
+                            <a class="nav-link <?php echo ($pagina_actual == 'dashboard') ? 'active' : ''; ?>" aria-current="page" href="index.php?c=dashboard">
                                 <i class="bi bi-house-door"></i>
                                 Dashboard
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="index.php?c=reclutamiento">
+                            <a class="nav-link <?php echo ($pagina_actual == 'reclutamiento') ? 'active' : ''; ?>" href="index.php?c=reclutamiento">
                                 <i class="bi bi-person-plus"></i>
                                 Reclutamiento
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="index.php?c=practicantes">
+                            <a class="nav-link <?php echo ($pagina_actual == 'practicantes') ? 'active' : ''; ?>" href="index.php?c=practicantes">
                                 <i class="bi bi-people"></i>
                                 Practicantes
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="index.php?c=convenios">
+                            <a class="nav-link <?php echo ($pagina_actual == 'convenios') ? 'active' : ''; ?>" href="index.php?c=convenios">
                                 <i class="bi bi-file-earmark-text"></i>
                                 Convenios
                             </a>
@@ -94,13 +96,13 @@
                     </h6>
                     <ul class="nav flex-column mb-2">
                         <li class="nav-item">
-                            <a class="nav-link" href="index.php?c=areas">
+                            <a class="nav-link <?php echo ($pagina_actual == 'areas') ? 'active' : ''; ?>" href="index.php?c=areas">
                                 <i class="bi bi-diagram-3"></i>
                                 Áreas y Locales
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="index.php?c=universidades">
+                            <a class="nav-link <?php echo ($pagina_actual == 'universidades') ? 'active' : ''; ?>" href="index.php?c=universidades">
                                 <i class="bi bi-building"></i>
                                 Universidades
                             </a>
@@ -109,10 +111,9 @@
                 </div>
             </nav>
 
-            <!-- Contenido Principal -->
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
                 <?php
-                // Aquí es donde se cargará la vista específica (ej: dashboard.php)
+                // Aquí es donde se cargará la vista específica (ej: dashboard/index.php)
                 if (file_exists($viewFile)) {
                     include $viewFile;
                 }
@@ -121,7 +122,6 @@
         </div>
     </div>
 
-    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

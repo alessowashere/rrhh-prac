@@ -265,4 +265,15 @@ class ReclutamientoModel {
         // Usamos PDO::FETCH_COLUMN para obtener solo la columna proceso_id en un array simple
         return $stmt->fetchAll(PDO::FETCH_COLUMN, 0); 
     }
+    
+    /**
+     * NUEVO: Cuenta los candidatos 'En Proceso' (Evaluación o Evaluados) para el Dashboard.
+     */
+    public function contarEnProceso() {
+        $sql = "SELECT COUNT(proceso_id) AS total 
+                FROM ProcesosReclutamiento 
+                WHERE estado_proceso IN ('En Evaluación', 'Evaluado')";
+        $stmt = $this->pdo->query($sql);
+        return $stmt->fetch()['total'] ?? 0;
+    }
 }

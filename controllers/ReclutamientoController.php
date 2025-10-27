@@ -11,8 +11,6 @@ class ReclutamientoController extends Controller {
         $this->practicanteModel = $this->model('PracticanteModel');
     }
 
-    // ... (Las funciones index, nuevo, guardar, evaluar, guardarEvaluacion, actualizarEstado no cambian) ...
-
     /**
      * Página principal. Muestra TODOS los procesos
      */
@@ -22,10 +20,31 @@ class ReclutamientoController extends Controller {
         // OBTENER IDs con ficha
         $procesosConFicha = $this->reclutamientoModel->getProcesosConFicha(); 
         
+        // --- NUEVO: Calcular contadores para el Dashboard ---
+        $contadores = [
+            'en_evaluacion' => 0,
+            'evaluado' => 0,
+            'pendiente' => 0,
+            'rechazado' => 0,
+            'aceptado' => 0 // A-invisible
+        ];
+        
+        foreach ($procesos as $proceso) {
+            switch ($proceso['estado_proceso']) {
+                case 'En Evaluación': $contadores['en_evaluacion']++; break;
+                case 'Evaluado': $contadores['evaluado']++; break;
+                case 'Pendiente': $contadores['pendiente']++; break;
+                case 'Rechazado': $contadores['rechazado']++; break;
+                case 'Aceptado': $contadores['aceptado']++; break;
+            }
+        }
+        // --- FIN NUEVO ---
+        
         $data = [
-            'titulo' => 'Gestión de Reclutamiento',
+            'titulo' => 'Dashboard de Reclutamiento', // Título cambiado
             'procesos' => $procesos,
-            'procesos_con_ficha' => $procesosConFicha // Pasar a la vista
+            'procesos_con_ficha' => $procesosConFicha,
+            'contadores' => $contadores // Pasar contadores a la vista
         ];
 
         $this->view('reclutamiento/index', $data);
@@ -296,8 +315,8 @@ class ReclutamientoController extends Controller {
                 $_SESSION['mensaje_error'] = 'Error al guardar evaluación: ' . $e->getMessage();
             }
 
-            // Redirigir de vuelta al formulario de evaluación
-            header('Location: index.php?c=reclutamiento&m=evaluar&id=' . $proceso_id);
+            // === CAMBIO 1: Redirigir al índice de reclutamiento ===
+            header('Location: index.php?c=reclutamiento');
             exit;
 
         } else {
@@ -397,9 +416,8 @@ class ReclutamientoController extends Controller {
                 $_SESSION['mensaje_error'] = 'Datos incompletos o error en la subida del archivo.';
             }
 
-            // *** ¡CAMBIO IMPORTANTE! ***
-            // Redirige de vuelta a la página de REVISIÓN
-            header('Location: index.php?c=reclutamiento&m=revisar&id=' . $proceso_id);
+            // === CAMBIO 2: Redirigir al índice de reclutamiento ===
+            header('Location: index.php?c=reclutamiento');
             exit;
         }
         header('Location: index.php?c=reclutamiento');

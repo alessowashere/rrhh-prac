@@ -1,6 +1,6 @@
 <?php
 // views/reclutamiento/index.php
-// $data['procesos'] ahora contiene TODOS los procesos
+$contadores = $data['contadores'];
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -27,33 +27,74 @@ if (isset($_SESSION['mensaje_error'])) {
 }
 ?>
 
+<div class="row mb-3">
+    <div class="col-md-3">
+        <div class="card text-white bg-warning mb-3">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-pencil-square"></i> En Evaluación</h5>
+                <p class="card-text fs-2"><?php echo $contadores['en_evaluacion']; ?></p>
+            </div>
+            <div class="card-footer text-end" style="cursor: pointer;" onclick="document.getElementById('tab-evaluacion').click();">
+                <span class="text-white">Ver listado <i class="bi bi-arrow-right-circle"></i></span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-search"></i> Evaluados</h5>
+                <p class="card-text fs-2"><?php echo $contadores['evaluado']; ?></p>
+            </div>
+             <div class="card-footer text-end" style="cursor: pointer;" onclick="document.getElementById('tab-evaluados').click();">
+                <span class="text-white">Ver listado <i class="bi bi-arrow-right-circle"></i></span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger mb-3">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-x-circle"></i> Rechazados</h5>
+                <p class="card-text fs-2"><?php echo $contadores['rechazado']; ?></p>
+            </div>
+             <div class="card-footer text-end" style="cursor: pointer;" onclick="document.getElementById('tab-rechazados').click();">
+                <span class="text-white">Ver listado <i class="bi bi-arrow-right-circle"></i></span>
+            </div>
+        </div>
+    </div>
+     <div class="col-md-3">
+        <div class="card text-white bg-secondary mb-3">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-clock-history"></i> Pendientes</h5>
+                <p class="card-text fs-2"><?php echo $contadores['pendiente']; ?></p>
+            </div>
+             <div class="card-footer text-end" style="cursor: pointer;" onclick="document.getElementById('tab-pendientes').click();">
+                <span class="text-white">Ver listado <i class="bi bi-arrow-right-circle"></i></span>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="card">
     <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs" id="filtro-estados" role="tablist">
             <li class="nav-item">
                 <button class="nav-link active" id="tab-evaluacion" data-bs-toggle="tab" data-filtro="En Evaluación" type="button">
-                    En Evaluación <span class="badge bg-warning text-dark"></span>
+                    En Evaluación
                 </button>
             </li>
             
             <li class="nav-item">
                 <button class="nav-link" id="tab-evaluados" data-bs-toggle="tab" data-filtro="Evaluado" type="button">
-                    Evaluados <span class="badge bg-success"></span>
-                </button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link" id="tab-aceptados" data-bs-toggle="tab" data-filtro="Aceptado" type="button">
-                    Aceptados <span class="badge bg-success"></span>
+                    Evaluados
                 </button>
             </li>
             <li class="nav-item">
                 <button class="nav-link" id="tab-rechazados" data-bs-toggle="tab" data-filtro="Rechazado" type="button">
-                    Rechazados <span class="badge bg-danger"></span>
+                    Rechazados
                 </button>
             </li>
              <li class="nav-item">
                 <button class="nav-link" id="tab-pendientes" data-bs-toggle="tab" data-filtro="Pendiente" type="button">
-                    Pendientes <span class="badge bg-secondary"></span>
+                    Pendientes
                 </button>
             </li>
         </ul>
@@ -129,6 +170,7 @@ if (isset($_SESSION['mensaje_error'])) {
                                 // *** FIN LÓGICA ***
 
                                 // Botones de Aceptar/Rechazar (Se muestran en 'Evaluado' y otros)
+                                // Si el estado es 'Aceptado', este botón se oculta automáticamente.
                                 if ($estadoActual != 'Aceptado'): ?>
                                 <a href="index.php?c=reclutamiento&m=actualizarEstado&id=<?php echo $proceso['proceso_id']; ?>&estado=Aceptado" class="btn btn-sm btn-success" title="Aceptar" onclick="return confirm('¿Está seguro de ACEPTAR este candidato?');">
                                     <i class="bi bi-check-lg"></i>
@@ -163,44 +205,40 @@ document.addEventListener('DOMContentLoaded', function() {
     const filas = tablaProcesos.getElementsByTagName('tr');
 
     function filtrarTabla(estadoFiltro) {
-        let count = 0;
         for (let i = 0; i < filas.length; i++) {
             const fila = filas[i];
             const estadoFila = fila.getAttribute('data-estado');
             
+            // Ocultar siempre 'Aceptado'
+            if (estadoFila === 'Aceptado') {
+                 fila.style.display = 'none';
+                 continue;
+            }
+
             if (estadoFila === estadoFiltro) {
                 fila.style.display = '';
-                count++;
             } else {
                 fila.style.display = 'none';
             }
         }
-        return count;
     }
-
-    function actualizarContadores() {
-        botonesFiltro.forEach(boton => {
-            const filtro = boton.getAttribute('data-filtro');
-            let count = 0;
-            for (let i = 0; i < filas.length; i++) {
-                if (filas[i].getAttribute('data-estado') === filtro) {
-                    count++;
-                }
-            }
-            boton.querySelector('.badge').textContent = count;
-        });
-    }
-
+    
+    // Asignar evento click a las pestañas
     botonesFiltro.forEach(boton => {
         boton.addEventListener('click', function(e) {
             e.preventDefault();
             const filtro = this.getAttribute('data-filtro');
+            
+            // Remover 'active' de todos los botones
+            botonesFiltro.forEach(b => b.classList.remove('active'));
+            // Añadir 'active' al clickeado
+            this.classList.add('active');
+            
             filtrarTabla(filtro);
         });
     });
 
     // Carga inicial
-    actualizarContadores();
     // Mostrar el filtro por defecto ('En Evaluación')
     document.getElementById('tab-evaluacion').click();
 });

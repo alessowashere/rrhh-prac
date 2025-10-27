@@ -156,4 +156,34 @@ class PracticanteModel {
             'escuelas' => $stmt_esc->fetchAll()
         ];
     }
+    
+    /**
+     * Cuenta los practicantes 'Activos' para el Dashboard.
+     */
+    public function contarActivos() {
+        $sql = "SELECT COUNT(practicante_id) AS total FROM Practicantes WHERE estado_general = 'Activo'";
+        $stmt = $this->pdo->query($sql);
+        return $stmt->fetch()['total'] ?? 0;
+    }
+    
+    /**
+     * NUEVO: Obtiene los conteos de practicantes por estado (Activo/Cesado).
+     */
+    public function getPracticanteCounts() {
+        $sql = "SELECT 
+                    COUNT(practicante_id) AS total,
+                    SUM(CASE WHEN estado_general = 'Activo' THEN 1 ELSE 0 END) AS activos,
+                    SUM(CASE WHEN estado_general = 'Cesado' THEN 1 ELSE 0 END) AS cesados
+                FROM Practicantes
+                WHERE estado_general IN ('Activo', 'Cesado')";
+        
+        $stmt = $this->pdo->query($sql);
+        $counts = $stmt->fetch();
+        
+        return [
+            'total' => $counts['total'] ?? 0,
+            'activos' => $counts['activos'] ?? 0,
+            'cesados' => $counts['cesados'] ?? 0
+        ];
+    }
 }

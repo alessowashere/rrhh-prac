@@ -17,9 +17,13 @@ class PracticantesController extends Controller {
         // Obtenemos la lista filtrada (solo Activos y Cesados)
         $practicantes = $this->practicanteModel->getPracticantesList();
         
+        // NUEVO: Obtener los conteos para las pestañas
+        $counts = $this->practicanteModel->getPracticanteCounts();
+        
         $data = [
             'titulo' => 'Gestión de Practicantes',
-            'practicantes' => $practicantes
+            'practicantes' => $practicantes,
+            'counts' => $counts // Pasar conteos a la vista
         ];
 
         $this->view('practicantes/index', $data);
