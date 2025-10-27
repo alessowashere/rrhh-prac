@@ -226,13 +226,30 @@ class ReclutamientoController extends Controller {
             exit;
         }
 
+        // --- ¡NUEVA LÓGICA PARA PRE-CARGAR EL PROMEDIO! ---
+        // Verificamos si la evaluación aún no ha iniciado (campo_1_nombre está vacío o por defecto)
+        // Y si el practicante SÍ tiene un promedio guardado.
+        if ( (empty($proceso['campo_1_nombre']) || $proceso['campo_1_nombre'] == 'Criterio 1') && !empty($proceso['promedio_general']) ) 
+        {
+            // Inyectamos los datos del promedio en el array $proceso
+            $proceso['campo_1_nombre'] = 'PROMEDIO (REGISTRO)';
+            $proceso['campo_1_nota'] = $proceso['promedio_general'];
+            
+            // Asignamos un peso por defecto (ej: 25%)
+            // Puedes cambiar este 25 por el peso que quieras darle.
+            // El JavaScript de 'evaluar.php' lo usará para el cálculo.
+            $proceso['campo_1_peso'] = 25; 
+        }
+        // --- FIN DE LA NUEVA LÓGICA ---
+
+
         // ¡NUEVO! Obtener los documentos
         // Usamos el modelo de Practicante para esto (o Reclutamiento si lo moviste)
         $documentos = $this->reclutamientoModel->getDocumentosPorProceso($proceso_id);
         
         $data = [
             'titulo' => 'Evaluar Entrevista',
-            'proceso' => $proceso,
+            'proceso' => $proceso, // $proceso ahora lleva el promedio inyectado
             'documentos' => $documentos // Pasamos los documentos a la vista
         ];
 

@@ -132,18 +132,17 @@ class ReclutamientoModel {
     /**
      * NUEVO: Agrega un documento a la tabla Documentos.
      */
+    /**
+     * NUEVO: Agrega un documento a la tabla Documentos.
+     * MODIFICADO: Ahora guarda el proceso_id (Requiere Paso A: ALTER TABLE).
+     */
     public function addDocumento(int $practicante_id, int $proceso_id, string $tipo_documento, string $url_archivo) {
-        // La tabla 'Documentos' no tiene 'proceso_id'
-        // Lo vincularemos solo al practicante por ahora.
-        // Si quieres vincularlo al proceso, debes alterar la tabla 'Documentos'.
         
-        $sql = "INSERT INTO Documentos (practicante_id, tipo_documento, url_archivo) 
-                VALUES (?, ?, ?)";
-        
-        // (Para vincular al convenio/adenda, esos campos deben ser NULL)
+        $sql = "INSERT INTO Documentos (practicante_id, proceso_id, tipo_documento, url_archivo) 
+                VALUES (?, ?, ?, ?)";
         
         $stmt = $this->pdo->prepare($sql);
-        return $stmt->execute([$practicante_id, $tipo_documento, $url_archivo]);
+        return $stmt->execute([$practicante_id, $proceso_id, $tipo_documento, $url_archivo]);
     }
 
 
@@ -151,10 +150,10 @@ class ReclutamientoModel {
      * Obtiene toda la información de un proceso.
      */
     public function getProcesoCompleto(int $proceso_id) {
-        // (Este método ya trae todo lo necesario, no requiere cambios)
         $sql = "SELECT 
                     p.*, 
                     pr.*, 
+                    pr.tipo_practica, -- <--- AÑADIDO
                     re.*,
                     ep.nombre AS escuela_nombre,
                     u.nombre AS universidad_nombre
