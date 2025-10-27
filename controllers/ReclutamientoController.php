@@ -212,10 +212,6 @@ class ReclutamientoController extends Controller {
     /**
      * Muestra el formulario para calificar una entrevista.
      * Busca los documentos del proceso.
-     */
-    /**
-     * Muestra el formulario para calificar una entrevista.
-     * Busca los documentos del proceso.
      * (Lógica de inyección de promedio ELIMINADA - ahora la hace el JS)
      */
     public function evaluar() {
@@ -249,6 +245,7 @@ class ReclutamientoController extends Controller {
     /**
      * Guarda las notas de la entrevista (ResultadosEntrevista)
      * y actualiza el puntaje final en ProcesosReclutamiento.
+     * --- ¡ESTA FUNCIÓN AHORA MARCA EL PROCESO COMO 'Evaluado'! ---
      */
     public function guardarEvaluacion() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -288,19 +285,22 @@ class ReclutamientoController extends Controller {
             }
             
             // Calcular promedio ponderado
-            // (Ej: (20*25 + 18*15) / (25 + 15))
             $promedio = ($suma_pesos_total > 0) ? ($suma_ponderada / $suma_pesos_total) : 0;
             $datosEntrevista['puntuacion_final'] = round($promedio, 2);
 
             // Llamar al modelo
             try {
-                // Usamos el método existente para actualizar las notas
+                // 1. Usamos el método existente para actualizar las notas
                 $this->reclutamientoModel->actualizarEntrevista($datosEntrevista);
                 
-                // Usamos un nuevo método (o modificamos el existente) para guardar la fecha
+                // 2. Usamos un nuevo método para guardar la fecha
                 $this->reclutamientoModel->actualizarFechaEntrevista($proceso_id, $datosEntrevista['fecha_entrevista']);
                 
-                $_SESSION['mensaje_exito'] = 'Evaluación guardada y promedio ponderado actualizado.';
+                // 3. *** ¡CAMBIO CLAVE! ***
+                // Al guardar la evaluación, marcamos el proceso como 'Evaluado'
+                $this->reclutamientoModel->cambiarEstadoProceso($proceso_id, 'Evaluado');
+                
+                $_SESSION['mensaje_exito'] = 'Evaluación guardada y proceso marcado como "Evaluado".';
             } catch (Exception $e) {
                 $_SESSION['mensaje_error'] = 'Error al guardar evaluación: ' . $e->getMessage();
             }
@@ -323,7 +323,8 @@ class ReclutamientoController extends Controller {
         $nuevo_estado = trim($_GET['estado'] ?? '');
 
         // Validar que el estado sea uno de los permitidos
-        $estados_validos = ['Aceptado', 'Rechazado', 'En Evaluación', 'Pendiente'];
+        // *** 'Evaluado' NO está aquí, porque solo se accede a él mediante guardarEvaluacion ***
+        $estados_validos = ['Aceptado', 'Rechazado', 'En Evaluación', 'Pendiente']; 
         
         if ($proceso_id > 0 && in_array($nuevo_estado, $estados_validos)) {
             try {
@@ -341,11 +342,8 @@ class ReclutamientoController extends Controller {
     }
 
     /**
-     * Sube la ficha de evaluación firmada.
+     * Muestra la revisión de una evaluación ya completada (solo lectura).
      */
-    /**
- * Muestra la revisión de una evaluación ya completada (solo lectura).
- */
     public function revisar() {
         $proceso_id = (int)($_GET['id'] ?? 0);
 
@@ -373,14 +371,15 @@ class ReclutamientoController extends Controller {
             'es_revision' => true // Indicador para la vista
         ];
 
-        // *** IMPORTANTE: Necesitas crear esta nueva vista 'revisar.php' ***
-        // Puedes copiar 'evaluar.php' y quitarle el form, inputs editables, botones de guardar/subir
-        // y el script de cálculo. Solo muestra los datos y el enlace a la ficha.
+        // Carga la vista 'revisar.php'
         $this->view('reclutamiento/revisar', $data); 
-        // Si prefieres, puedes reutilizar 'evaluar.php' y añadirle `if($data['es_revision'])` 
-        // para ocultar/deshabilitar campos, pero una vista separada es más limpia.
     }
-        public function subirFicha() {
+    
+    /**
+     * Sube la ficha de evaluación firmada.
+     * --- ¡ESTA FUNCIÓN AHORA SOLO SUBE EL ARCHIVO! ---
+     */
+    public function subirFicha() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $proceso_id = (int)$_POST['proceso_id'];
             $practicante_id = (int)$_POST['practicante_id'];
@@ -394,26 +393,31 @@ class ReclutamientoController extends Controller {
                 $nombre_archivo = $practicante_id . '_FICHA_EVALUACION_' . $proceso_id . '.pdf';
                 $ruta_destino = $ruta_base . $nombre_archivo;
                 
+                // === ¡Importante! ===
+                // Si move_uploaded_file falla, es casi seguro que es un problema de permisos
+                // en la carpeta /uploads/documentos/ de tu servidor.
                 if (move_uploaded_file($archivo['tmp_name'], $ruta_destino)) {
                     $url_relativa = 'uploads/documentos/' . $nombre_archivo;
                     try {
-                        // Guardar en la BD
+                        // 1. Guardar en la BD
                         $this->reclutamientoModel->addDocumento($practicante_id, $proceso_id, 'FICHA_CALIFICACION', $url_relativa);
 
-                        // *** NUEVA LÍNEA: Cambiar estado a Evaluado ***
-                        $this->reclutamientoModel->cambiarEstadoProceso($proceso_id, 'Evaluado'); 
+                        // 2. *** ¡LÍNEA ELIMINADA! ***
+                        // Ya no cambia el estado aquí.
+                        // $this->reclutamientoModel->cambiarEstadoProceso($proceso_id, 'Evaluado'); 
 
-                        $_SESSION['mensaje_exito'] = 'Ficha firmada subida y proceso marcado como Evaluado.';
+                        $_SESSION['mensaje_exito'] = 'Ficha firmada subida exitosamente.';
                     } catch (Exception $e) {
-                        $_SESSION['mensaje_error'] = 'Error al guardar ficha: ' . $e->getMessage();
+                        $_SESSION['mensaje_error'] = 'Error al guardar la ficha en la BD: ' . $e->getMessage();
                     }
                 } else {
-                    $_SESSION['mensaje_error'] = 'Error al mover el archivo subido.';
+                    $_SESSION['mensaje_error'] = 'Error crítico: No se pudo mover el archivo al servidor. Verifica los permisos de la carpeta "uploads/documentos".';
                 }
             } else {
-                $_SESSION['mensaje_error'] = 'Datos incompletos o error en la subida.';
+                $_SESSION['mensaje_error'] = 'Datos incompletos o error en la subida del archivo.';
             }
 
+            // Redirige de vuelta a la misma página de evaluación
             header('Location: index.php?c=reclutamiento&m=evaluar&id=' . $proceso_id);
             exit;
         }
