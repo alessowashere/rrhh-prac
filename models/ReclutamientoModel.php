@@ -226,6 +226,24 @@ class ReclutamientoModel {
             throw new Exception("Error al actualizar entrevista: " . $e->getMessage());
         }
     }
+    
+    public function getDocumentosPorProceso(int $proceso_id) {
+        $sql = "SELECT tipo_documento, url_archivo 
+                FROM Documentos 
+                WHERE proceso_id = ? 
+                ORDER BY 
+                    -- Ordena el consolidado primero, si existe
+                    CASE 
+                        WHEN tipo_documento = 'CONSOLIDADO' THEN 1
+                        WHEN tipo_documento = 'FICHA_CALIFICACION' THEN 3
+                        ELSE 2 
+                    END,
+                    fecha_carga ASC";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$proceso_id]);
+        return $stmt->fetchAll();
+    }
 
     /**
      * Cambia el estado de un ProcesoReclutamiento.

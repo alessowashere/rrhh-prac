@@ -1,31 +1,118 @@
 <?php
 // views/reclutamiento/evaluar.php
+// $data['proceso'] tiene todos los datos (practicante, proceso, resultados)
+// $data['documentos'] tiene los archivos (CV, DNI, CONSOLIDADO, etc.)
 $proceso = $data['proceso'];
+$documentos = $data['documentos'] ?? []; // Asegurarnos que sea un array
+
+// Buscamos el PDF consolidado (o el CV si no hay consolidado)
+$url_pdf_principal = '';
+$url_ficha_firmada = '';
+
+foreach ($documentos as $doc) {
+    if ($doc['tipo_documento'] == 'CONSOLIDADO') {
+        $url_pdf_principal = $doc['url_archivo'];
+    }
+    if ($doc['tipo_documento'] == 'FICHA_CALIFICACION') {
+        $url_ficha_firmada = $doc['url_archivo'];
+    }
+}
+
+// Fallback: Si no hay CONSOLIDADO, buscar el CV
+if (empty($url_pdf_principal)) {
+    foreach ($documentos as $doc) {
+        if ($doc['tipo_documento'] == 'CV') {
+            $url_pdf_principal = $doc['url_archivo'];
+            break;
+        }
+    }
+}
 ?>
 
 <style>
     @media print {
+        /* Define el tamaño de la página y márgenes */
+        @page {
+            size: A4;
+            margin: 20mm; 
+        }
+
+        body {
+            font-size: 10pt; /* Reduce el tamaño de letra general */
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Oculta todo por defecto */
         body * {
             visibility: hidden;
         }
+
+        /* Muestra solo la sección imprimible y sus hijos */
         #seccion-imprimible, #seccion-imprimible * {
             visibility: visible;
         }
+
+        /* Asegura que la sección ocupe el espacio */
         #seccion-imprimible {
             position: absolute;
             left: 0;
             top: 0;
             width: 100%;
+            margin: 0;
+            padding: 0;
         }
+
+        /* Oculta botones, alertas, etc. */
         .no-imprimir, .no-imprimir * {
             display: none !important;
         }
+
+        /* Evita saltos de página dentro de estos elementos */
+        .card, .card-body, form {
+            page-break-inside: avoid;
+        }
+
+        /* Estilos para los campos de formulario */
         .form-control {
             border: 1px solid #ccc !important;
-            background-color: #eee !important;
+            background-color: #f8f8f8 !important; /* Fondo ligero para ver el campo */
+            padding: 2px 4px;
+        }
+        textarea.form-control {
+            min-height: 80px; /* Altura de comentarios */
+        }
+        
+        .card {
+            border: 1px solid #aaa;
+            margin-bottom: 10px !important;
         }
         .card-header {
-            border-bottom: 1px solid #000;
+            border-bottom: 1px solid #aaa;
+            padding: 5px 10px;
+        }
+        .card-body {
+            padding: 10px;
+        }
+
+        /* Fuerza que las columnas (col-lg-4, col-lg-8) se apilen */
+        .row.print-stack {
+            display: block !important;
+        }
+        .row.print-stack > [class*="col-"] {
+            width: 100% !important;
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+
+        /* Estilos para las firmas */
+        .firmas-container {
+            page-break-before: auto; /* Intenta ponerlo en la misma pág. si cabe */
+            margin-top: 25px;
+        }
+        .firmas-container p {
+            margin-bottom: 0;
+            font-size: 10pt;
         }
     }
 </style>
@@ -56,21 +143,55 @@ if (isset($_SESSION['mensaje_error'])) {
 
 <div id="seccion-imprimible">
 
-    <div class="row">
+    <div class="row print-stack">
         <div class="col-lg-4 mb-4">
-            <div class="card sticky-top" style="top: 80px;"> <div class="card-header">
+            <div class="card sticky-top" style="top: 80px;"> 
+                
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Datos del Candidato</h5>
+                    
+                    <?php if (!empty($url_pdf_principal)): ?>
+                        <button type="button" class="btn btn-sm btn-primary no-imprimir" data-bs-toggle="modal" data-bs-target="#modalVerPDF">
+                            <i class="bi bi-file-earmark-pdf-fill"></i> Ver PDF
+                        </button>
+                    <?php else: ?>
+                        <span class="badge bg-warning text-dark no-imprimir">Sin PDF</span>
+                    <?php endif; ?>
                 </div>
+
                 <div class="card-body">
                     <strong>Nombre:</strong>
                     <p class="mb-2"><?php echo htmlspecialchars($proceso['nombres'] . ' ' . $proceso['apellidos']); ?></p>
+                    
                     <strong>DNI:</strong>
                     <p class="mb-2"><?php echo htmlspecialchars($proceso['dni']); ?></p>
+                    
                     <strong>Universidad:</strong>
                     <p class="mb-2"><?php echo htmlspecialchars($proceso['universidad_nombre']); ?></p>
+                    
                     <strong>Escuela:</strong>
                     <p class="mb-2"><?php echo htmlspecialchars($proceso['escuela_nombre']); ?></p>
-                    <hr>
+                    
+                    <strong>Promedio:</strong>
+                    <p class="mb-2"><?php echo htmlspecialchars($proceso['promedio_general']); ?></p>
+                    
+                    <hr class="no-imprimir">
+                    
+                    <strong>Estado del Proceso:</strong>
+                    <p class="mb-2">
+                        <span class="badge 
+                            <?php 
+                                switch($proceso['estado_proceso']) {
+                                    case 'Aceptado': echo 'bg-success'; break;
+                                    case 'Rechazado': echo 'bg-danger'; break;
+                                    case 'Pendiente': echo 'bg-secondary'; break;
+                                    default: echo 'bg-warning text-dark';
+                                }
+                            ?>">
+                            <?php echo htmlspecialchars($proceso['estado_proceso']); ?>
+                        </span>
+                    </p>
+                    
                     <strong>Puntaje Final Entrevista:</strong>
                     <h4 class="mb-0 text-primary">
                         <?php echo htmlspecialchars($proceso['puntuacion_final_entrevista'] ?? '0.00'); ?>
@@ -83,16 +204,23 @@ if (isset($_SESSION['mensaje_error'])) {
                     <h5 class="mb-0">Ficha Firmada</h5>
                 </div>
                 <div class="card-body">
-                    <p><small>Subir la ficha de evaluación firmada como constancia (PDF).</small></p>
-                    <form action="index.php?c=reclutamiento&m=subirFicha" method="POST" enctype="multipart/form-data">
-                        <input type="hidden" name="proceso_id" value="<?php echo $proceso['proceso_id']; ?>">
-                        <input type="hidden" name="practicante_id" value="<?php echo $proceso['practicante_id']; ?>">
-                        
-                        <div class="mb-2">
-                             <input type="file" class="form-control form-control-sm" name="ficha_firmada" accept=".pdf" required>
+                    <?php if (!empty($url_ficha_firmada)): ?>
+                        <div class="alert alert-success text-center">
+                            <i class="bi bi-check-circle-fill"></i> Ficha Subida
+                            <a href="<?php echo htmlspecialchars($url_ficha_firmada); ?>" target="_blank" class="btn btn-sm btn-outline-success w-100 mt-2">Ver Ficha</a>
                         </div>
-                        <button type="submit" class="btn btn-sm btn-outline-success w-100">Subir Ficha</button>
-                    </form>
+                    <?php else: ?>
+                        <p><small>Subir la ficha de evaluación firmada como constancia (PDF).</small></p>
+                        <form action="index.php?c=reclutamiento&m=subirFicha" method="POST" enctype="multipart/form-data">
+                            <input type="hidden" name="proceso_id" value="<?php echo $proceso['proceso_id']; ?>">
+                            <input type="hidden" name="practicante_id" value="<?php echo $proceso['practicante_id']; ?>">
+                            
+                            <div class="mb-2">
+                                 <input type="file" class="form-control form-control-sm" name="ficha_firmada" accept=".pdf" required>
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-outline-success w-100">Subir Ficha</button>
+                        </form>
+                    <?php endif; ?>
                 </div>
             </div>
             
@@ -115,12 +243,13 @@ if (isset($_SESSION['mensaje_error'])) {
                         </div>
                     </div>
                     <div class="card-body">
-                        <p>Defina los criterios y asigne una nota (ej: 0-20). Los campos sin nota no se contarán en el promedio (el sistema ya hace esto).</p>
+                        <p>Defina los criterios y asigne una nota (ej: 0-20). Los campos sin nota no se contarán en el promedio.</p>
                         
                         <?php for ($i = 1; $i <= 10; $i++): 
                             $nombre_key = 'campo_' . $i . '_nombre';
                             $nota_key = 'campo_' . $i . '_nota';
                             
+                            // Usamos los valores por defecto de la BD
                             $nombre_val = $proceso[$nombre_key] ?? 'Criterio ' . $i;
                             $nota_val = $proceso[$nota_key];
                         ?>
@@ -160,17 +289,20 @@ if (isset($_SESSION['mensaje_error'])) {
                             </button>
                         </div>
 
-                        <div class="mt-5 d-none d-print-block">
-                            <hr>
-                            <h5 class="text-center mb-5">Firmas de Evaluadores</h5>
-                            <div class="row text-center">
-                                <div class="col-6">
+                        <div class="firmas-container d-none d-print-block">
+                            <h5 class="text-center" style="margin-top: 30px; margin-bottom: 20px;">Firmas</h5>
+                            <div class="row text-center" style="padding-top: 30px;">
+                                <div class="col-6" style="margin-bottom: 50px;">
                                     <p>_________________________</p>
-                                    <p>Firma Evaluador 1</p>
+                                </div>
+                                <div class="col-6" style="margin-bottom: 50px;">
+                                    <p>_________________________</p>
                                 </div>
                                 <div class="col-6">
                                     <p>_________________________</p>
-                                    <p>Firma Evaluador 2</p>
+                                </div>
+                                <div class="col-6">
+                                    <p>_________________________</p>
                                 </div>
                             </div>
                         </div>
@@ -181,24 +313,59 @@ if (isset($_SESSION['mensaje_error'])) {
         </div>
     </div>
 
-</div> <script>
-document.getElementById('perfil_evaluacion').addEventListener('change', function() {
-    const camposAMostrar = parseInt(this.value);
-    const todasLasFilas = document.querySelectorAll('.criterio-row');
+</div> <div class="modal fade" id="modalVerPDF" tabindex="-1" aria-labelledby="modalVerPDFLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-fullscreen-lg-down" style="height: 95vh;">
+    <div class="modal-content" style="height: 100%;">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalVerPDFLabel">Documento Consolidado del Candidato</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <?php if (!empty($url_pdf_principal)): ?>
+            <iframe src="<?php echo htmlspecialchars($url_pdf_principal); ?>" width="100%" height="100%" frameborder="0">
+                Tu navegador no soporta PDFs. <a href="<?php echo htmlspecialchars($url_pdf_principal); ?>">Descarga el PDF aquí</a>.
+            </iframe>
+        <?php else: ?>
+            <p class="p-3 text-center">No se encontró el archivo PDF (CONSOLIDADO o CV) para este candidato.</p>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
     
-    todasLasFilas.forEach((fila, index) => {
-        const inputNota = fila.querySelector('.criterio-nota');
-        if (index < camposAMostrar) {
-            // Mostrar fila
-            fila.style.display = 'flex';
-        } else {
-            // Ocultar fila y limpiar la nota para que no cuente en el promedio
-            fila.style.display = 'none';
-            inputNota.value = '';
-        }
-    });
-});
+    const perfilSelect = document.getElementById('perfil_evaluacion');
+    
+    function aplicarPerfil() {
+        // Asegurarse de que el select exista (no es null)
+        if (!perfilSelect) return; 
 
-// Disparar el evento 'change' al cargar la página para aplicar el perfil por defecto (5 campos)
-document.getElementById('perfil_evaluacion').dispatchEvent(new Event('change'));
+        const camposAMostrar = parseInt(perfilSelect.value);
+        const todasLasFilas = document.querySelectorAll('.criterio-row');
+        
+        todasLasFilas.forEach((fila, index) => {
+            const inputNota = fila.querySelector('.criterio-nota');
+            if (index < camposAMostrar) {
+                // Mostrar fila
+                fila.style.display = 'flex';
+            } else {
+                // Ocultar fila y limpiar la nota para que no cuente en el promedio
+                fila.style.display = 'none';
+                if(inputNota) {
+                    inputNota.value = '';
+                }
+            }
+        });
+    }
+
+    // Evento change
+    if (perfilSelect) {
+        perfilSelect.addEventListener('change', aplicarPerfil);
+        
+        // Carga inicial al abrir el formulario
+        aplicarPerfil();
+    }
+
+});
 </script>
