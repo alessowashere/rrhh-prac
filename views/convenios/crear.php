@@ -14,7 +14,7 @@ $p = $data['practicante'];
 
 <?php 
 if (isset($_SESSION['mensaje_error'])) {
-    echo '<div class="alert alert-danger" role="alert">' . htmlspecialchars($_SESSION['mensaje_error']) . '</div>';
+    echo '<div class="alert alert-danger" role="alert">' . $_SESSION['mensaje_error'] . '</div>';
     unset($_SESSION['mensaje_error']);
 }
 ?>
@@ -40,7 +40,7 @@ if (isset($_SESSION['mensaje_error'])) {
                     <input type="hidden" name="proceso_id" value="<?php echo $data['proceso_id']; ?>">
                     
                     <h5 class="mb-3">1. Datos Generales del Convenio</h5>
-                    <div class="row g-3 mb-3">
+                    <div class="row g-3">
                         <div class="col-12">
                             <label for="tipo_practica_display" class="form-label">Tipo de Práctica (Automático)</label>
                             <input type="text" class="form-control bg-light" id="tipo_practica_display" 
@@ -50,9 +50,9 @@ if (isset($_SESSION['mensaje_error'])) {
                         </div>
                     </div>
 
-                    <hr>
+                    <hr class="my-4">
                     
-                    <h5 class="mb-3 mt-4">2. Datos del Primer Período</h5>
+                    <h5 class="mb-3">2. Datos del Primer Período</h5>
                     <div class="row g-3">
                         <div class="col-sm-6">
                             <label for="fecha_inicio" class="form-label">Fecha de Inicio <span class="text-danger">*</span></label>
@@ -65,14 +65,13 @@ if (isset($_SESSION['mensaje_error'])) {
                             <div class="invalid-feedback">Fecha de fin es obligatoria.</div>
                         </div>
                         
-                        <div class="col-12 mt-2">
+                        <div class="col-12">
                              <label class="form-label">Calcular Fecha Fin (desde inicio):</label>
                              <div class="btn-group btn-group-sm" role="group">
                                 <button type="button" class="btn btn-outline-secondary btn-calc-fecha" data-meses="4">4 Meses</button>
                                 <button type="button" class="btn btn-outline-secondary btn-calc-fecha" data-meses="6">6 Meses</button>
-                                <button type="button" class="btn btn-outline-secondary btn-calc-fecha" data-meses="12">1 Año (12 Meses)</button>
+                                <button type="button" class="btn btn-outline-secondary btn-calc-fecha" data-meses="12">1 Año</button>
                             </div>
-                             <small class="text-muted d-block">Calcula la fecha fin restando 1 día al final.</small>
                         </div>
 
                         <div class="col-sm-6 mt-3">
@@ -99,7 +98,7 @@ if (isset($_SESSION['mensaje_error'])) {
                     
                     <hr class="my-4">
                     <button class="btn btn-primary btn-lg" type="submit">
-                       <i class="bi bi-save-fill"></i> Guardar Datos e Ir a Subir Firma
+                       <i class="bi bi-save"></i> Guardar Datos e Ir a Subir Firma
                     </button>
                 </form>
             </div>
@@ -135,16 +134,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const fechaInicio = inputFechaInicio.value;
             if (fechaInicio) {
                 inputFechaFin.value = calcularFechaFin(fechaInicio, meses);
-                 // Trigger change event para validación si es necesario
-                inputFechaFin.dispatchEvent(new Event('change'));
-            } else {
-                //alert('Por favor, seleccione una Fecha de Inicio primero.');
-                inputFechaInicio.focus();
-                 // Poner fecha de hoy si está vacío y calcular
-                 const hoy = new Date().toISOString().split('T')[0];
-                 inputFechaInicio.value = hoy;
-                 inputFechaFin.value = calcularFechaFin(hoy, meses);
+                 // Trigger cambio para validación si es necesario
                  inputFechaFin.dispatchEvent(new Event('change'));
+            } else {
+                // alert('Por favor, seleccione una Fecha de Inicio primero.');
+                inputFechaInicio.focus();
+                // Opcional: Poner fecha de hoy si está vacío
+                 if (!inputFechaInicio.value) {
+                     const hoy = new Date().toISOString().split('T')[0];
+                     inputFechaInicio.value = hoy;
+                     inputFechaFin.value = calcularFechaFin(hoy, meses);
+                     inputFechaFin.dispatchEvent(new Event('change'));
+                 }
             }
         });
     });
@@ -163,12 +164,6 @@ document.addEventListener('DOMContentLoaded', function() {
             form.classList.add('was-validated')
           }, false)
         })
-    })();
-    
-     // Calcular fecha fin inicial si la de inicio ya tiene valor (ej. hoy por defecto)
-    if(inputFechaInicio && inputFechaInicio.value && inputFechaFin && !inputFechaFin.value) {
-        // Podrías llamar a calcular para 6 meses por defecto, por ejemplo
-        // inputFechaFin.value = calcularFechaFin(inputFechaInicio.value, 6); 
-    }
+    })()
 });
 </script>

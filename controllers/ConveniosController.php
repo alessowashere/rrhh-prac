@@ -4,23 +4,22 @@
 class ConveniosController extends Controller {
 
     private $convenioModel;
-    private $reclutamientoModel;
+    private $reclutamientoModel; // Se cargará en el constructor
 
     public function __construct() {
+        // Carga directa de modelos. El método model() maneja errores si no los encuentra.
         $this->convenioModel = $this->model('ConvenioModel');
-        $this->reclutamientoModel = $this->model('ReclutamientoModel');
+        $this->reclutamientoModel = $this->model('ReclutamientoModel'); 
     }
 
     /**
-     * Muestra el dashboard de Convenios:
-     * 1. Candidatos 'Aceptados' pendientes de convenio.
-     * 2. Convenios 'Vigentes'.
+     * Muestra el dashboard de Convenios.
      */
     public function index() {
         $data = [
             'titulo' => 'Gestión de Convenios',
             'pendientes' => $this->convenioModel->getCandidatosAceptados(),
-            'vigentes' => $this->convenioModel->getConveniosVigentes() // Modelo modificado
+            'vigentes' => $this->convenioModel->getConveniosVigentes()
         ];
         $this->view('convenios/index', $data);
     }
@@ -38,20 +37,32 @@ class ConveniosController extends Controller {
             exit;
         }
 
+        // Ya no necesitamos la validación if (!$this->reclutamientoModel), 
+        // porque si falló la carga en el constructor, la ejecución se habría detenido antes.
+
+        // Usamos directamente el modelo cargado en el constructor
         $proceso_simple = $this->reclutamientoModel->getProcesoSimple($proceso_id);
         if (!$proceso_simple) {
-            $_SESSION['mensaje_error'] = 'El proceso de reclutamiento de origen no existe.';
+            // Este error es si el modelo cargó, pero no encontró el ID específico
+            $_SESSION['mensaje_error'] = 'El proceso de reclutamiento de origen (ID: '.$proceso_id.') no existe o no se pudo cargar.';
             header('Location: index.php?c=convenios');
             exit;
         }
 
         $catalogos = $this->convenioModel->getCatalogos();
+        $practicante = $this->convenioModel->getPracticanteSimple($practicante_id);
+
+        if(!$practicante){
+            $_SESSION['mensaje_error'] = 'El practicante (ID: '.$practicante_id.') no existe o no se pudo cargar.';
+            header('Location: index.php?c=convenios');
+            exit;
+        }
         
         $data = [
             'titulo' => 'Crear Nuevo Convenio',
             'proceso_id' => $proceso_id,
-            'practicante' => $this->convenioModel->getPracticanteSimple($practicante_id),
-            'tipo_practica' => $proceso_simple['tipo_practica'],
+            'practicante' => $practicante,
+            'tipo_practica' => $proceso_simple['tipo_practica'] ?? 'No especificado', // Asegurar valor por defecto
             'locales' => $catalogos['locales'],
             'areas' => $catalogos['areas']
         ];
@@ -60,8 +71,7 @@ class ConveniosController extends Controller {
     }
 
     /**
-     * Guarda el nuevo convenio (solo datos) y el primer período.
-     * El convenio nace con estado_firma = 'Pendiente'. Redirige a GESTIONAR.
+     * Guarda el nuevo convenio (datos) y el primer período.
      */
     public function guardar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -71,7 +81,7 @@ class ConveniosController extends Controller {
                 'proceso_id' => (int)$_POST['proceso_id'],
                 'tipo_practica' => trim($_POST['tipo_practica']),
                 'estado_convenio' => 'Vigente', 
-                'estado_firma' => 'Pendiente' // Nace pendiente
+                'estado_firma' => 'Pendiente'
             ];
             
             $datosPeriodo = [
@@ -82,25 +92,23 @@ class ConveniosController extends Controller {
                 'estado_periodo' => (strtotime($_POST['fecha_inicio']) <= time()) ? 'Activo' : 'Futuro'
             ];
 
-            // Validaciones básicas
-            if (empty($datosConvenio['practicante_id']) || empty($datosConvenio['tipo_practica']) || empty($datosPeriodo['fecha_inicio']) || empty($datosPeriodo['fecha_fin']) || empty($datosPeriodo['local_id']) || empty($datosPeriodo['area_id'])) {
+            if (empty($datosConvenio['practicante_id']) || empty($datosConvenio['tipo_practica']) || empty($datosPeriodo['fecha_inicio']) || empty($datosPeriodo['fecha_fin'])) {
                 $_SESSION['mensaje_error'] = 'Todos los campos marcados con * son obligatorios.';
-                 // Asegúrate de pasar los IDs de nuevo para recargar el form
-                header('Location: index.php?c=convenios&m=crear&proceso_id=' . $datosConvenio['proceso_id'] . '&practicante_id=' . $datosConvenio['practicante_id']);
+                header('Location: index.php?c=convenios&m=crear&proceso_id=' . ($datosConvenio['proceso_id'] ?? 0) . '&practicante_id=' . ($datosConvenio['practicante_id'] ?? 0));
                 exit;
             }
 
             try {
-                // El modelo ahora solo pone 'Pendiente'
                 $convenio_id = $this->convenioModel->crearConvenioTransaccion($datosConvenio, $datosPeriodo);
                 
                 $_SESSION['mensaje_exito'] = 'Datos del convenio guardados. El practicante está "Activo". Ahora debe subir el convenio firmado.';
-                // Redirige a GESTIONAR para subir el documento
                 header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id); 
                 exit;
             } catch (Exception $e) {
-                $_SESSION['mensaje_error'] = 'Error al guardar los datos del convenio: ' . $e->getMessage();
-                header('Location: index.php?c=convenios&m=crear&proceso_id=' . $datosConvenio['proceso_id'] . '&practicante_id=' . $datosConvenio['practicante_id']);
+                $_SESSION['mensaje_error'] = 'Error al guardar convenio: ' . $e->getMessage();
+                 // Log detallado para el servidor
+                 error_log("Error en ConveniosController::guardar(): " . $e->getMessage());
+                header('Location: index.php?c=convenios&m=crear&proceso_id=' . ($datosConvenio['proceso_id'] ?? 0) . '&practicante_id=' . ($datosConvenio['practicante_id'] ?? 0));
                 exit;
             }
         }
@@ -114,6 +122,7 @@ class ConveniosController extends Controller {
     public function gestionar() {
         $convenio_id = (int)($_GET['id'] ?? 0);
         if ($convenio_id === 0) {
+             $_SESSION['mensaje_error'] = 'ID de Convenio inválido.';
             header('Location: index.php?c=convenios');
             exit;
         }
@@ -127,32 +136,26 @@ class ConveniosController extends Controller {
              exit;
         }
         
-        $fecha_fin_actual = '';
-        foreach ($convenio_detalle['periodos'] as $p) {
-            if ($p['estado_periodo'] == 'Activo') {
-                $fecha_fin_actual = $p['fecha_fin'];
-                break;
-            }
-        }
-         // Si no hay activo, busca el futuro para calcular extensión
-        if(empty($fecha_fin_actual)) {
-             foreach ($convenio_detalle['periodos'] as $p) {
-                if ($p['estado_periodo'] == 'Futuro') {
+        $fecha_fin_actual = null;
+        $periodo_activo = null; 
+        if (isset($convenio_detalle['periodos']) && is_array($convenio_detalle['periodos'])) {
+            foreach ($convenio_detalle['periodos'] as $p) {
+                if ($p['estado_periodo'] == 'Activo') {
                     $fecha_fin_actual = $p['fecha_fin'];
+                    $periodo_activo = $p; 
                     break;
                 }
             }
         }
-        // Si sigue vacío, usa el fin del último período finalizado
-        if(empty($fecha_fin_actual) && !empty($convenio_detalle['periodos'])) {
-            $fecha_fin_actual = $convenio_detalle['periodos'][0]['fecha_fin']; // El primero es el más reciente
+        if ($fecha_fin_actual === null) {
+            $fecha_fin_actual = date('Y-m-d');
         }
 
-
         $data = [
-            'titulo' => 'Gestionar Convenio',
+            'titulo' => 'Gestionar Convenio #' . $convenio_id,
             'convenio' => $convenio_detalle,
-            'fecha_fin_actual_calculo' => $fecha_fin_actual, // Para usar en JS como base para calcular
+            'fecha_fin_actual' => $fecha_fin_actual,
+            'periodo_activo' => $periodo_activo,
             'locales' => $catalogos['locales'],
             'areas' => $catalogos['areas']
         ];
@@ -161,34 +164,51 @@ class ConveniosController extends Controller {
     }
 
     /**
-     * Sube el PDF del CONVENIO INICIAL firmado y actualiza el estado.
+     * Sube el PDF del CONVENIO INICIAL firmado.
      */
     public function subirConvenioFirmado() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $convenio_id = (int)$_POST['convenio_id'];
-            $practicante_id = (int)$_POST['practicante_id']; // Necesario para nombrar archivo
+            $practicante_id = (int)$_POST['practicante_id']; 
             $archivo = $_FILES['documento_convenio'] ?? null;
 
-            if ($convenio_id > 0 && $practicante_id > 0 && $archivo && $archivo['error'] == UPLOAD_ERR_OK) {
+            if ($convenio_id > 0 && $practicante_id > 0 && $archivo && $archivo['error'] == UPLOAD_ERR_OK && $archivo['type'] == 'application/pdf') {
                 
-                // Mover archivo
                 $url_relativa = $this->moverDocumento($archivo, $practicante_id, $convenio_id, 'CONVENIO_FIRMADO');
 
-                if ($url_relativa !== false) {
+                if ($url_relativa) {
                     try {
-                        $this->convenioModel->actualizarConvenioFirmado($convenio_id, $url_relativa);
-                        $_SESSION['mensaje_exito'] = 'Convenio principal firmado y subido exitosamente.';
+                        if($this->convenioModel->actualizarConvenioFirmado($convenio_id, $url_relativa)){
+                            $_SESSION['mensaje_exito'] = 'Convenio principal firmado y subido exitosamente.';
+                        } else {
+                             $_SESSION['mensaje_error'] = 'Error al actualizar la base de datos (convenio no actualizado).';
+                        }
                     } catch (Exception $e) {
-                        $_SESSION['mensaje_error'] = 'Error al actualizar la base de datos: ' . $e->getMessage();
+                        error_log("Error BD al subir convenio firmado: ".$e->getMessage());
+                        $_SESSION['mensaje_error'] = 'Error al actualizar BD: ' . $e->getMessage();
                     }
                 } else {
-                    $_SESSION['mensaje_error'] = 'Error al mover el archivo subido. Verifique permisos de la carpeta uploads/documentos.';
+                    $_SESSION['mensaje_error'] = 'Error al mover el archivo subido. Verifique permisos en uploads/documentos.';
                 }
-            } elseif ($archivo && $archivo['error'] !== UPLOAD_ERR_OK) {
-                 $_SESSION['mensaje_error'] = 'Error al subir el archivo PDF: Código ' . $archivo['error'];
-            }
-             else {
-                $_SESSION['mensaje_error'] = 'Datos incompletos o falta el archivo PDF.';
+            } else {
+                 $error_msg = 'Datos incompletos o error en la subida. ';
+                 if(!$archivo || $archivo['error'] !== UPLOAD_ERR_OK) {
+                     $upload_errors = [
+                         UPLOAD_ERR_INI_SIZE   => "El archivo excede la directiva upload_max_filesize.",
+                         UPLOAD_ERR_FORM_SIZE  => "El archivo excede la directiva MAX_FILE_SIZE.",
+                         UPLOAD_ERR_PARTIAL    => "El archivo se subió parcialmente.",
+                         UPLOAD_ERR_NO_FILE    => "No se subió ningún archivo.",
+                         UPLOAD_ERR_NO_TMP_DIR => "Falta directorio temporal.",
+                         UPLOAD_ERR_CANT_WRITE => "No se pudo escribir el archivo en disco.",
+                         UPLOAD_ERR_EXTENSION  => "Una extensión de PHP detuvo la subida.",
+                     ];
+                     $error_code = $archivo['error'] ?? UPLOAD_ERR_NO_FILE;
+                     $error_msg .= 'Error: ' . ($upload_errors[$error_code] ?? 'Desconocido');
+
+                 } elseif ($archivo['type'] != 'application/pdf') {
+                      $error_msg .= 'El archivo debe ser PDF (tipo detectado: '.$archivo['type'].').';
+                 }
+                $_SESSION['mensaje_error'] = $error_msg;
             }
             header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
             exit;
@@ -197,56 +217,52 @@ class ConveniosController extends Controller {
         exit;
     }
 
-
     /**
-     * Guarda una adenda de AMPLIACIÓN (extiende el período activo/futuro).
-     * Incluye subida obligatoria de la adenda firmada.
+     * Guarda una adenda de AMPLIACIÓN.
      */
     public function ampliar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $convenio_id = (int)$_POST['convenio_id'];
-            $practicante_id = (int)$_POST['practicante_id']; // Necesario
-            $archivo = $_FILES['documento_adenda'] ?? null;
+            $practicante_id = (int)$_POST['practicante_id'];
+            $archivo = $_FILES['documento_adenda_amp'] ?? null; 
             $nueva_fecha_fin = trim($_POST['nueva_fecha_fin']);
-            $fecha_adenda = trim($_POST['fecha_adenda']);
             
             $datosAdenda = [
                 'convenio_id' => $convenio_id,
-                'tipo_accion' => 'AMPLIACION', // Fijo
-                'fecha_adenda' => $fecha_adenda,
-                'descripcion' => trim($_POST['descripcion']),
-                'documento_adenda_url' => null // Se llenará después
+                'tipo_accion' => 'AMPLIACION', 
+                'fecha_adenda' => trim($_POST['fecha_adenda']),
+                'descripcion' => trim($_POST['descripcion_amp']), 
+                'documento_adenda_url' => null 
             ];
 
-            // Validaciones
-            if (empty($nueva_fecha_fin) || empty($fecha_adenda)) {
-                $_SESSION['mensaje_error'] = 'La Nueva Fecha Fin y la Fecha de Adenda son obligatorias.';
+            if (!$archivo || $archivo['error'] != UPLOAD_ERR_OK || $archivo['type'] != 'application/pdf') {
+                $_SESSION['mensaje_error'] = 'El Documento de Adenda (PDF) es obligatorio para la ampliación.';
                 header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
                 exit;
             }
-             if (!$archivo || $archivo['error'] != UPLOAD_ERR_OK) {
-                $_SESSION['mensaje_error'] = 'El Documento de Adenda (PDF) firmado es obligatorio.';
-                header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
-                exit;
-            }
+             if (empty($nueva_fecha_fin) || empty($datosAdenda['fecha_adenda'])) {
+                 $_SESSION['mensaje_error'] = 'Las fechas (Nueva Fin y Adenda) son obligatorias.';
+                 header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
+                 exit;
+             }
             
-            // 1. Mover el documento
             $url_relativa = $this->moverDocumento($archivo, $practicante_id, $convenio_id, 'ADENDA_AMPLIACION');
-            if ($url_relativa === false) {
-                 $_SESSION['mensaje_error'] = 'Error al guardar el documento de adenda. Verifique permisos.';
+            if (!$url_relativa) {
+                 $_SESSION['mensaje_error'] = 'Error al guardar el documento de adenda de ampliación.';
                  header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
                  exit;
             }
-            
             $datosAdenda['documento_adenda_url'] = $url_relativa;
 
-            // 2. Ejecutar la transacción
             try {
-                // El modelo actualiza el período activo O FUTURO y registra adenda
-                $this->convenioModel->ampliarConvenio($datosAdenda, $nueva_fecha_fin);
-                $_SESSION['mensaje_exito'] = 'Convenio ampliado exitosamente. Adenda registrada con documento.';
+                if($this->convenioModel->ampliarConvenio($datosAdenda, $nueva_fecha_fin)){
+                    $_SESSION['mensaje_exito'] = 'Convenio ampliado exitosamente. Adenda registrada.';
+                } else {
+                     $_SESSION['mensaje_error'] = 'Error al procesar la ampliación en la base de datos.';
+                }
             } catch (Exception $e) {
-                $_SESSION['mensaje_error'] = 'Error al procesar la ampliación: ' . $e->getMessage();
+                 error_log("Error en ConveniosController::ampliar(): " . $e->getMessage());
+                $_SESSION['mensaje_error'] = 'Error al ampliar: ' . $e->getMessage();
             }
             header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
             exit;
@@ -255,24 +271,19 @@ class ConveniosController extends Controller {
         exit;
     }
 
-
     /**
-     * Guarda un nuevo período (Reubicación o Corte/Suspensión).
-     * Cierra el período anterior y registra la adenda con documento obligatorio.
+     * Guarda un nuevo período (REUBICACION o CORTE).
      */
     public function guardarPeriodo() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $convenio_id = (int)$_POST['convenio_id'];
-            $practicante_id = (int)$_POST['practicante_id']; // Necesario
-            $archivo = $_FILES['documento_adenda'] ?? null;
-            $tipo_accion = trim($_POST['tipo_accion']); // REUBICACION o CORTE
-
-            // Validar tipo_accion
-            if (!in_array($tipo_accion, ['REUBICACION', 'CORTE'])) {
-                $_SESSION['mensaje_error'] = 'Tipo de acción inválido.';
-                header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
-                exit;
-            }
+            $practicante_id = (int)$_POST['practicante_id'];
+            $tipo_accion = trim($_POST['tipo_accion']); 
+            
+            $nombre_campo_archivo = ($tipo_accion == 'REUBICACION') ? 'documento_adenda_reub' : 'documento_adenda_corte';
+            $archivo = $_FILES[$nombre_campo_archivo] ?? null;
+            
+            $nombre_campo_desc = ($tipo_accion == 'REUBICACION') ? 'descripcion_reub' : 'descripcion_corte';
 
             $datosPeriodo = [
                 'convenio_id' => $convenio_id,
@@ -280,7 +291,6 @@ class ConveniosController extends Controller {
                 'fecha_fin' => trim($_POST['fecha_fin']),
                 'local_id' => (int)$_POST['local_id'],
                 'area_id' => (int)$_POST['area_id'],
-                 // Determinar si el nuevo período es 'Activo' o 'Futuro'
                 'estado_periodo' => (strtotime($_POST['fecha_inicio']) <= time()) ? 'Activo' : 'Futuro'
             ];
             
@@ -288,40 +298,44 @@ class ConveniosController extends Controller {
                 'convenio_id' => $convenio_id,
                 'tipo_accion' => $tipo_accion,
                 'fecha_adenda' => trim($_POST['fecha_adenda']),
-                'descripcion' => trim($_POST['descripcion']),
-                'documento_adenda_url' => null // Se llenará después
+                'descripcion' => trim($_POST[$nombre_campo_desc]),
+                'documento_adenda_url' => null 
             ];
 
-            // Validaciones
-            if (empty($datosPeriodo['fecha_inicio']) || empty($datosPeriodo['fecha_fin']) || empty($datosPeriodo['local_id']) || empty($datosPeriodo['area_id']) || empty($datosAdenda['fecha_adenda'])) {
-                 $_SESSION['mensaje_error'] = 'Las fechas del nuevo período, local, área y fecha de adenda son obligatorios.';
+            if (!in_array($tipo_accion, ['REUBICACION', 'CORTE'])) {
+                $_SESSION['mensaje_error'] = 'Tipo de acción inválida.';
                  header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
                  exit;
             }
-            if (!$archivo || $archivo['error'] != UPLOAD_ERR_OK) {
-                $_SESSION['mensaje_error'] = 'El Documento de Adenda (PDF) firmado es obligatorio para esta acción.';
+             if (!$archivo || $archivo['error'] != UPLOAD_ERR_OK || $archivo['type'] != 'application/pdf') {
+                $_SESSION['mensaje_error'] = 'El Documento de Adenda (PDF) es obligatorio para ' . $tipo_accion . '.';
                 header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
                 exit;
             }
+            if (empty($datosPeriodo['fecha_inicio']) || empty($datosPeriodo['fecha_fin']) || empty($datosAdenda['fecha_adenda'])) {
+                 $_SESSION['mensaje_error'] = 'Todas las fechas son obligatorias.';
+                 header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
+                 exit;
+             }
 
-            // 1. Mover el documento
             $nombre_doc = 'ADENDA_' . $tipo_accion;
             $url_relativa = $this->moverDocumento($archivo, $practicante_id, $convenio_id, $nombre_doc);
-            if ($url_relativa === false) {
-                 $_SESSION['mensaje_error'] = 'Error al guardar el documento de adenda. Verifique permisos.';
+            if (!$url_relativa) {
+                 $_SESSION['mensaje_error'] = 'Error al guardar el documento de adenda de ' . $tipo_accion . '.';
                  header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
                  exit;
             }
-            
             $datosAdenda['documento_adenda_url'] = $url_relativa;
 
-            // 2. Ejecutar la transacción
             try {
-                // El modelo cierra período anterior, inserta el nuevo Y registra la adenda.
-                $this->convenioModel->agregarNuevoPeriodo($datosPeriodo, $datosAdenda);
-                $_SESSION['mensaje_exito'] = 'Nuevo período registrado y adenda (' . $tipo_accion . ') guardada. El período anterior fue finalizado.';
+                if($this->convenioModel->agregarNuevoPeriodo($datosPeriodo, $datosAdenda)){
+                    $_SESSION['mensaje_exito'] = 'Nuevo período registrado (' . $tipo_accion . ') y adenda guardada. El período anterior fue finalizado.';
+                } else {
+                     $_SESSION['mensaje_error'] = 'Error al procesar el registro del nuevo período en la base de datos.';
+                }
             } catch (Exception $e) {
-                $_SESSION['mensaje_error'] = 'Error al procesar el cambio de período: ' . $e->getMessage();
+                 error_log("Error en ConveniosController::guardarPeriodo(): " . $e->getMessage());
+                $_SESSION['mensaje_error'] = 'Error al guardar período (' . $tipo_accion . '): ' . $e->getMessage();
             }
             header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
             exit;
@@ -331,20 +345,18 @@ class ConveniosController extends Controller {
     }
     
     /**
-     * Finaliza/Cancela un convenio (RENUNCIA o CANCELADO).
-     * 'Renuncia' requiere documento PDF. 'Cancelado' no.
-     * Registra la acción en la tabla Adendas.
+     * Registra un CESE (RENUNCIA o CANCELADO).
      */
-    public function finalizar() {
+    public function registrarCese() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $convenio_id = (int)($_POST['convenio_id'] ?? 0);
-            $practicante_id = (int)($_POST['practicante_id'] ?? 0); // Necesario
-            $nuevo_estado = trim($_POST['estado'] ?? ''); // 'Renuncia' o 'Cancelado'
-            $archivo = $_FILES['documento_renuncia'] ?? null;
-            $descripcion = trim($_POST['descripcion'] ?? '');
+            $practicante_id = (int)($_POST['practicante_id'] ?? 0);
+            $nuevo_estado = trim($_POST['estado'] ?? ''); 
+            $archivo = $_FILES['documento_renuncia'] ?? null; 
+            $descripcion = trim($_POST['descripcion_cese'] ?? '');
 
             if ($convenio_id === 0 || $practicante_id === 0 || !in_array($nuevo_estado, ['Renuncia', 'Cancelado'])) {
-                 $_SESSION['mensaje_error'] = 'Datos inválidos para finalizar convenio.';
+                 $_SESSION['mensaje_error'] = 'Datos inválidos para registrar el cese.';
                  header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
                  exit;
             }
@@ -356,78 +368,76 @@ class ConveniosController extends Controller {
             
             $url_relativa = null;
             
-            // Si es Renuncia, el documento es OBLIGATORIO
             if ($nuevo_estado == 'Renuncia') {
-                if (!$archivo || $archivo['error'] != UPLOAD_ERR_OK) {
-                    $_SESSION['mensaje_error'] = 'El Documento de Renuncia (PDF) es obligatorio.';
+                if (!$archivo || $archivo['error'] != UPLOAD_ERR_OK || $archivo['type'] != 'application/pdf') {
+                    $_SESSION['mensaje_error'] = 'El Documento de Renuncia (PDF) es obligatorio para registrar la renuncia.';
                     header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
                     exit;
                 }
                 
                 $url_relativa = $this->moverDocumento($archivo, $practicante_id, $convenio_id, 'RENUNCIA');
-                if ($url_relativa === false) {
-                     $_SESSION['mensaje_error'] = 'Error al guardar el documento de renuncia. Verifique permisos.';
+                if (!$url_relativa) {
+                     $_SESSION['mensaje_error'] = 'Error al guardar el documento de renuncia.';
                      header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
                      exit;
                 }
             }
 
             try {
-                // El modelo actualiza Convenio, Practicante, Período y registra la Adenda.
-                $this->convenioModel->finalizarConvenio($convenio_id, $practicante_id, $nuevo_estado, $descripcion, $url_relativa);
-                 $_SESSION['mensaje_exito'] = "Convenio actualizado a '$nuevo_estado'. El practicante fue movido a 'Cesado'. Se registró la acción en el historial de adendas.";
+                if($this->convenioModel->finalizarConvenio($convenio_id, $practicante_id, $nuevo_estado, $descripcion, $url_relativa)){
+                    $_SESSION['mensaje_exito'] = "Cese por '$nuevo_estado' registrado. El practicante fue movido a 'Cesado'.";
+                } else {
+                     $_SESSION['mensaje_error'] = 'Error al registrar el cese en la base de datos.';
+                }
             } catch (Exception $e) {
-                $_SESSION['mensaje_error'] = 'Error al finalizar convenio: ' . $e->getMessage();
+                error_log("Error en ConveniosController::registrarCese(): " . $e->getMessage());
+                $_SESSION['mensaje_error'] = 'Error al registrar cese: ' . $e->getMessage();
             }
             
-            // Importante redirigir DESPUÉS del try-catch
             header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
             exit;
         }
-        // Si no es POST, simplemente redirigir a la gestión
-        $convenio_id_get = (int)($_GET['convenio_id'] ?? 0);
-         if ($convenio_id_get > 0) {
-             header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id_get);
-         } else {
-             header('Location: index.php?c=convenios');
-         }
+        header('Location: index.php?c=convenios');
         exit;
     }
 
     /**
      * Función privada para mover archivos subidos.
-     * Devuelve la URL relativa o false en caso de error.
      */
     private function moverDocumento($archivo, $practicante_id, $convenio_id, $tipo) {
-        // Asegura que la ruta base sea correcta RELATIVA al index.php
-        $ruta_base = 'uploads/documentos/'; 
-        
-        // Verifica si el directorio existe y tiene permisos, si no, intenta crearlo
-        if (!is_dir($ruta_base)) {
-            if (!mkdir($ruta_base, 0777, true)) {
-                error_log("Error: No se pudo crear el directorio de subida: " . $ruta_base);
-                return false; // No se pudo crear el directorio
-            }
-        } elseif (!is_writable($ruta_base)) {
-             error_log("Error: El directorio de subida no tiene permisos de escritura: " . $ruta_base);
-             return false; // El directorio no tiene permisos
-        }
+        $ruta_base_relativa = 'uploads/documentos/'; // Relativa al index.php
+        $ruta_base_absoluta = realpath(__DIR__ . '/../') . '/' . $ruta_base_relativa;
 
-        // Limpia el tipo para usarlo en el nombre del archivo
-        $tipo_limpio = preg_replace('/[^A-Za-z0-9_]/', '', $tipo);
+        // Intentar crear directorio si no existe
+        if (!is_dir($ruta_base_absoluta)) {
+            if (!mkdir($ruta_base_absoluta, 0777, true)) {
+                error_log("Error CRÍTICO: No se pudo crear el directorio de subida: " . $ruta_base_absoluta);
+                return false; 
+            }
+        }
+        // Verificar permisos de escritura si ya existe
+        elseif (!is_writable($ruta_base_absoluta)) {
+            error_log("Error CRÍTICO: El directorio de subida no tiene permisos de escritura: " . $ruta_base_absoluta);
+            return false;
+        }
         
-        // Generar un nombre único (ej: 5_CONVENIO_FIRMADO_12_1678886400.pdf)
+        $tipo_limpio = preg_replace('/[^a-zA-Z0-9_]/', '_', strtoupper($tipo));
         $extension = pathinfo($archivo['name'], PATHINFO_EXTENSION);
-        if (empty($extension)) $extension = 'pdf'; // Asumir pdf si no tiene extensión
+        if (strtolower($extension) !== 'pdf') {
+             error_log("Error: Se intentó subir un archivo no PDF ($extension) para $tipo.");
+             return false; 
+        }
         
-        $nombre_archivo = $practicante_id . '_' . $tipo_limpio . '_' . $convenio_id . '_' . time() . '.' . $extension;
-        $ruta_destino = $ruta_base . $nombre_archivo;
+        // Nombre: PID_TIPO_CID_timestamp.pdf
+        $nombre_archivo = $practicante_id . '_' . $tipo_limpio . '_' . $convenio_id . '_' . time() . '.pdf';
+        $ruta_destino_absoluta = $ruta_base_absoluta . $nombre_archivo;
         
-        if (move_uploaded_file($archivo['tmp_name'], $ruta_destino)) {
-            return $ruta_base . $nombre_archivo; // Devuelve la URL relativa
+        if (move_uploaded_file($archivo['tmp_name'], $ruta_destino_absoluta)) {
+            return $ruta_base_relativa . $nombre_archivo; // Devuelve URL relativa
         } else {
-             error_log("Error: move_uploaded_file falló para " . $archivo['tmp_name'] . " a " . $ruta_destino);
-             return false; // Error al mover el archivo
+             $last_error = error_get_last();
+             error_log("Error al mover archivo subido: {$archivo['tmp_name']} a {$ruta_destino_absoluta}. Error PHP: " . ($last_error['message'] ?? 'No disponible'));
+            return false;
         }
     }
-}
+} // Fin de la clase ConveniosController
