@@ -11,7 +11,6 @@ class ConvenioModel {
 
     /**
      * Obtiene los candidatos 'Aceptados' que AÚN NO tienen un convenio.
-     * Esta es la "bandeja de entrada".
      */
     public function getCandidatosAceptados() {
         $sql = "SELECT p.practicante_id, p.dni, p.nombres, p.apellidos,
@@ -30,13 +29,27 @@ class ConvenioModel {
     }
 
     /**
-     * Obtiene los convenios que están 'Vigentes'.
+     * Obtiene convenios 'Vigentes' con el área, fechas actuales y estado de firma.
      */
     public function getConveniosVigentes() {
-        $sql = "SELECT c.convenio_id, c.tipo_practica, c.estado_convenio,
-                       p.practicante_id, p.dni, p.nombres, p.apellidos
+        $sql = "SELECT 
+                    c.convenio_id, c.tipo_practica, c.estado_convenio,
+                    c.estado_firma, -- NUEVO: Para saber si está firmado
+                    p.practicante_id, p.dni, p.nombres, p.apellidos,
+                    
+                    pc_activo.fecha_inicio AS fecha_inicio_actual,
+                    pc_activo.fecha_fin AS fecha_fin_actual,
+                    a.nombre AS area_actual,
+                    
+                    (SELECT COUNT(ad.adenda_id) FROM Adendas ad WHERE ad.convenio_id = c.convenio_id) AS num_adendas
+
                 FROM Convenios c
                 JOIN Practicantes p ON c.practicante_id = p.practicante_id
+                
+                LEFT JOIN PeriodosConvenio pc_activo ON pc_activo.convenio_id = c.convenio_id 
+                                                     AND pc_activo.estado_periodo = 'Activo'
+                LEFT JOIN Areas a ON pc_activo.area_id = a.area_id
+                
                 WHERE c.estado_convenio = 'Vigente'
                 ORDER BY p.apellidos ASC";
         
@@ -71,20 +84,23 @@ class ConvenioModel {
     }
 
     /**
-     * [TRANSACCIÓN] Crea el Convenio, su 1er Período y actualiza al Practicante.
+     * [TRANSACCIÓN] Crea el Convenio (datos), su 1er Período y actualiza al Practicante.
+     * El convenio nace con estado_firma = 'Pendiente'.
      */
     public function crearConvenioTransaccion(array $datosConvenio, array $datosPeriodo) {
         $this->pdo->beginTransaction();
         try {
             // 1. Insertar el Convenio
-            $sql_conv = "INSERT INTO Convenios (practicante_id, proceso_id, tipo_practica, estado_convenio, induccion_completada)
-                         VALUES (?, ?, ?, ?, FALSE)";
+            // Se añade 'estado_firma'
+            $sql_conv = "INSERT INTO Convenios (practicante_id, proceso_id, tipo_practica, estado_convenio, induccion_completada, estado_firma)
+                         VALUES (?, ?, ?, ?, FALSE, ?)";
             $stmt_conv = $this->pdo->prepare($sql_conv);
             $stmt_conv->execute([
                 $datosConvenio['practicante_id'],
                 $datosConvenio['proceso_id'],
                 $datosConvenio['tipo_practica'],
-                $datosConvenio['estado_convenio']
+                $datosConvenio['estado_convenio'],
+                $datosConvenio['estado_firma'] // 'Pendiente'
             ]);
             
             $convenio_id = $this->pdo->lastInsertId();
@@ -112,7 +128,6 @@ class ConvenioModel {
 
         } catch (Exception $e) {
             $this->pdo->rollBack();
-            // Re-lanzar la excepción para que el controlador la maneje
             throw new Exception("Error en la transacción: " . $e->getMessage());
         }
     }
@@ -141,7 +156,7 @@ class ConvenioModel {
         $stmt_per->execute([$convenio_id]);
         $convenio['periodos'] = $stmt_per->fetchAll();
         
-        // Añadir adendas
+        // Añadir adendas (AHORA INCLUYE URL DEL DOCUMENTO)
         $sql_ad = "SELECT * FROM Adendas WHERE convenio_id = ? ORDER BY fecha_adenda DESC";
         $stmt_ad = $this->pdo->prepare($sql_ad);
         $stmt_ad->execute([$convenio_id]);
@@ -151,24 +166,61 @@ class ConvenioModel {
     }
     
     /**
-     * Agrega una nueva adenda (simple INSERT).
+     * Agrega una nueva adenda (ahora incluye la URL del documento).
      */
     public function agregarAdenda(array $datos) {
-        $sql = "INSERT INTO Adendas (convenio_id, tipo_accion, fecha_adenda, descripcion)
-                VALUES (?, ?, ?, ?)";
+        $sql = "INSERT INTO Adendas (convenio_id, tipo_accion, fecha_adenda, descripcion, documento_adenda_url)
+                VALUES (?, ?, ?, ?, ?)";
         $stmt = $this->pdo->prepare($sql);
         return $stmt->execute([
             $datos['convenio_id'],
             $datos['tipo_accion'],
             $datos['fecha_adenda'],
-            $datos['descripcion']
+            $datos['descripcion'],
+            $datos['documento_adenda_url'] // <-- NUEVO
         ]);
+    }
+
+    /**
+     * [NUEVO] Actualiza el convenio principal como "Firmado" y guarda la URL del PDF.
+     */
+    public function actualizarConvenioFirmado(int $convenio_id, string $url_documento) {
+        $sql = "UPDATE Convenios 
+                SET estado_firma = 'Firmado', documento_convenio_url = ?
+                WHERE convenio_id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([$url_documento, $convenio_id]);
+    }
+
+    /**
+     * [TRANSACCIÓN] Amplía la fecha de fin del período activo y registra la adenda (con documento).
+     */
+    public function ampliarConvenio(array $datosAdenda, string $nueva_fecha_fin) {
+        $this->pdo->beginTransaction();
+        try {
+            // 1. Actualizar el período 'Activo'
+            $sql_update = "UPDATE PeriodosConvenio 
+                           SET fecha_fin = ?
+                           WHERE convenio_id = ? AND estado_periodo = 'Activo'";
+            $stmt_update = $this->pdo->prepare($sql_update);
+            $stmt_update->execute([ $nueva_fecha_fin, $datosAdenda['convenio_id'] ]);
+
+            // 2. Insertar el registro de la Adenda (que ya incluye la URL del doc)
+            $this->agregarAdenda($datosAdenda);
+
+            $this->pdo->commit();
+            
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            throw new Exception("Error al ampliar convenio: " . $e->getMessage());
+        }
     }
     
     /**
-     * [TRANSACCIÓN] Agrega un nuevo período y finaliza el anterior.
+     * [TRANSACCIÓN] Agrega un nuevo período (Corte/Reubicación) y finaliza el anterior.
+     * AHORA TAMBIÉN REGISTRA LA ADENDA con su documento.
      */
-    public function agregarNuevoPeriodo(array $datosPeriodo) {
+    public function agregarNuevoPeriodo(array $datosPeriodo, array $datosAdenda) {
         $this->pdo->beginTransaction();
         try {
             // 1. Finalizar el período 'Activo' o 'Futuro' actual
@@ -176,7 +228,6 @@ class ConvenioModel {
                            SET estado_periodo = 'Finalizado', fecha_fin = ?
                            WHERE convenio_id = ? AND estado_periodo IN ('Activo', 'Futuro')";
             $stmt_update = $this->pdo->prepare($sql_update);
-            // El período anterior termina un día antes de que empiece el nuevo
             $fecha_fin_anterior = date('Y-m-d', strtotime($datosPeriodo['fecha_inicio'] . ' -1 day'));
             $stmt_update->execute([ $fecha_fin_anterior, $datosPeriodo['convenio_id'] ]);
 
@@ -193,6 +244,9 @@ class ConvenioModel {
                 $datosPeriodo['estado_periodo']
             ]);
             
+            // 3. Insertar el registro de la Adenda (que ya incluye la URL del doc)
+            $this->agregarAdenda($datosAdenda);
+            
             $this->pdo->commit();
             
         } catch (Exception $e) {
@@ -202,25 +256,35 @@ class ConvenioModel {
     }
     
     /**
-     * [TRANSACCIÓN] Finaliza/Cancela un convenio.
-     * Actualiza Convenio, Practicante y el último Período.
+     * [TRANSACCIÓN] Finaliza/Cancela un convenio (Renuncia o Cancelado).
+     * Actualiza Convenio, Practicante, Período y registra el documento.
      */
-    public function actualizarEstadoConvenio(int $convenio_id, int $practicante_id, string $nuevo_estado_convenio, string $nuevo_estado_practicante) {
+    public function finalizarConvenio(int $convenio_id, int $practicante_id, string $estado_convenio, string $descripcion, ?string $documento_url) {
         $this->pdo->beginTransaction();
         try {
             // 1. Actualizar estado del Convenio
             $sql_conv = "UPDATE Convenios SET estado_convenio = ? WHERE convenio_id = ?";
-            $this->pdo->prepare($sql_conv)->execute([$nuevo_estado_convenio, $convenio_id]);
+            $this->pdo->prepare($sql_conv)->execute([$estado_convenio, $convenio_id]);
             
-            // 2. Actualizar estado general del Practicante
-            $sql_prac = "UPDATE Practicantes SET estado_general = ? WHERE practicante_id = ?";
-            $this->pdo->prepare($sql_prac)->execute([$nuevo_estado_practicante, $practicante_id]);
+            // 2. Actualizar estado general del Practicante a 'Cesado'
+            $sql_prac = "UPDATE Practicantes SET estado_general = 'Cesado' WHERE practicante_id = ?";
+            $this->pdo->prepare($sql_prac)->execute([$practicante_id]);
             
             // 3. Finalizar el período 'Activo' (si existe)
-            // Asumimos que finaliza hoy
             $sql_per = "UPDATE PeriodosConvenio SET estado_periodo = 'Finalizado', fecha_fin = CURDATE()
                         WHERE convenio_id = ? AND estado_periodo = 'Activo'";
             $this->pdo->prepare($sql_per)->execute([$convenio_id]);
+
+            // 4. [NUEVO] Registrar la acción como una Adenda para historial
+            // (Si es 'Renuncia' debe tener URL, si es 'Cancelado' puede ser solo descripción)
+            $sql_ad = "INSERT INTO Adendas (convenio_id, tipo_accion, fecha_adenda, descripcion, documento_adenda_url)
+                       VALUES (?, ?, CURDATE(), ?, ?)";
+            $this->pdo->prepare($sql_ad)->execute([
+                $convenio_id,
+                $estado_convenio, // 'Renuncia' o 'Cancelado'
+                $descripcion,
+                $documento_url
+            ]);
 
             $this->pdo->commit();
         } catch (Exception $e) {
@@ -247,7 +311,7 @@ class ConvenioModel {
     }
     
     /**
-     * NUEVO: Obtiene la LISTA de convenios que vencen pronto.
+     * Obtiene la LISTA de convenios que vencen pronto.
      */
     public function getConveniosPorVencer(int $dias = 30) {
         $sql = "SELECT DISTINCT p.practicante_id, p.nombres, p.apellidos, pc.fecha_fin, c.convenio_id
@@ -265,13 +329,12 @@ class ConvenioModel {
     }
     
     /**
-     * NUEVO: Obtiene los últimos convenios creados (para 'Actividad Reciente').
+     * Obtiene los últimos convenios creados (para 'Actividad Reciente').
      */
     public function getUltimosConveniosCreados(int $limite = 5) {
         $sql = "SELECT c.convenio_id, c.tipo_practica, p.practicante_id, p.nombres, p.apellidos, a.nombre AS area_nombre
                 FROM Convenios c
                 JOIN Practicantes p ON c.practicante_id = p.practicante_id
-                -- Busca el primer período (el más reciente) de ese convenio
                 LEFT JOIN PeriodosConvenio pc ON pc.convenio_id = c.convenio_id
                                              AND pc.periodo_id = (SELECT MAX(periodo_id) 
                                                                   FROM PeriodosConvenio 

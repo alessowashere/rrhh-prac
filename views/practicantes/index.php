@@ -62,7 +62,7 @@ if (isset($_SESSION['mensaje_error'])) {
                 </thead>
                 <tbody id="tabla-practicantes">
                     <?php if (empty($data['practicantes'])): ?>
-                        <tr>
+                        <tr id="fila-no-datos">
                             <td colspan="7" class="text-center">No hay practicantes registrados.</td>
                         </tr>
                     <?php else: ?>
@@ -90,6 +90,9 @@ if (isset($_SESSION['mensaje_error'])) {
                             </td>
                         </tr>
                         <?php endforeach; ?>
+                         <tr id="fila-no-coincidencias" style="display: none;">
+                            <td colspan="7" class="text-center text-muted">No se encontraron coincidencias.</td>
+                        </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -104,14 +107,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const buscador = document.getElementById('buscador');
     const tablaPracticantes = document.getElementById('tabla-practicantes');
     const filas = tablaPracticantes.getElementsByTagName('tr');
+    const filaNoCoincidencias = document.getElementById('fila-no-coincidencias');
+    const filaNoDatos = document.getElementById('fila-no-datos'); // La fila original de "no hay datos"
+    
     let filtroActivo = 'Todos'; // Estado inicial
 
     function filtrarTabla() {
         let textoBusqueda = buscador.value.toLowerCase();
+        let filasVisibles = 0;
 
         for (let fila of filas) {
-            // Ignorar la fila de "no hay practicantes"
+            // Ignorar las filas de "no hay datos" o "no hay coincidencias"
+            if (fila.id === 'fila-no-coincidencias' || fila.id === 'fila-no-datos') continue;
             if (fila.getElementsByTagName('td').length < 7) continue;
+
 
             let estadoFila = fila.getAttribute('data-estado');
             let textoFila = fila.innerText.toLowerCase();
@@ -125,9 +134,22 @@ document.addEventListener('DOMContentLoaded', function() {
             // 3. Mostrar/Ocultar
             if (PasaFiltroEstado && PasaFiltroBusqueda) {
                 fila.style.display = ""; // (reset a 'table-row')
+                filasVisibles++;
             } else {
                 fila.style.display = "none";
             }
+        }
+        
+        // Mostrar/Ocultar mensaje de "no hay coincidencias"
+        if (filaNoCoincidencias) {
+             filaNoCoincidencias.style.display = (filasVisibles === 0 && !filaNoDatos) ? "" : "none";
+        }
+        
+        // Ocultar "no hay practicantes" si estamos buscando
+         if (filaNoDatos && textoBusqueda !== '') {
+            filaNoDatos.style.display = 'none';
+        } else if (filaNoDatos && textoBusqueda === '' && filtroActivo === 'Todos') {
+             filaNoDatos.style.display = (filasVisibles > 0) ? 'none' : '';
         }
     }
 
@@ -135,10 +157,11 @@ document.addEventListener('DOMContentLoaded', function() {
     botonesFiltro.forEach(boton => {
         boton.addEventListener('click', function(e) {
             e.preventDefault();
-            // Quitar 'active' de todos (lo gestiona Bootstrap, pero por si acaso)
-            // botonesFiltro.forEach(b => b.classList.remove('active'));
-            // this.classList.add('active');
             
+            // Gestionar clase 'active' manualmente para asegurar que funciona
+            botonesFiltro.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+
             filtroActivo = this.getAttribute('data-filtro');
             filtrarTabla();
         });
@@ -149,6 +172,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Carga inicial (para asegurar que 'Todos' esté activo)
     filtrarTabla();
-
 });
 </script>

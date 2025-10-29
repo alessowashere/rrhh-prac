@@ -276,4 +276,16 @@ class ReclutamientoModel {
         $stmt = $this->pdo->query($sql);
         return $stmt->fetch()['total'] ?? 0;
     }
+    
+    /**
+     * [NUEVO] Obtiene datos básicos de un proceso (para jalar el tipo de práctica).
+     */
+    public function getProcesoSimple(int $proceso_id) {
+        $sql = "SELECT proceso_id, practicante_id, tipo_practica 
+                FROM ProcesosReclutamiento 
+                WHERE proceso_id = ?";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([$proceso_id]);
+        return $stmt->fetch();
+    }
 }
