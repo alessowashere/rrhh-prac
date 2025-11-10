@@ -334,6 +334,56 @@ class ConvenioModel {
             throw new Exception("Error en transacción finalizarConvenio: " . $e->getMessage());
         }
     }
+    /**
+ * [TRANSACCIÓN] Registra una suspensión.
+ * 1. Finaliza el período activo en la fecha de suspensión.
+ * 2. Crea un nuevo período con las fechas de retorno y nueva fecha fin.
+ * 3. Registra la adenda.
+ */
+public function registrarSuspension(array $datosNuevoPeriodo, array $datosAdenda, string $fecha_suspension) {
+    $this->pdo->beginTransaction();
+    try {
+        // 1. Finalizar el período 'Activo' o 'Futuro' actual en la fecha de suspensión
+        $sql_update = "UPDATE PeriodosConvenio 
+                       SET estado_periodo = 'Finalizado', fecha_fin = ?
+                       WHERE convenio_id = ? AND estado_periodo IN ('Activo', 'Futuro')";
+        $stmt_update = $this->pdo->prepare($sql_update);
+
+        if (!$stmt_update->execute([ $fecha_suspension, $datosNuevoPeriodo['convenio_id'] ])) {
+             throw new Exception("No se pudo finalizar el período anterior.");
+        }
+         if ($stmt_update->rowCount() === 0) {
+             throw new Exception("No se encontró un período activo/futuro para finalizar (suspender).");
+         }
+
+        // 2. Insertar el nuevo Período (el de retorno)
+        $sql_insert = "INSERT INTO PeriodosConvenio (convenio_id, fecha_inicio, fecha_fin, local_id, area_id, estado_periodo)
+                       VALUES (?, ?, ?, ?, ?, ?)";
+        $stmt_insert = $this->pdo->prepare($sql_insert);
+        if (!$stmt_insert->execute([
+            $datosNuevoPeriodo['convenio_id'],
+            $datosNuevoPeriodo['fecha_inicio'], // fecha_retorno
+            $datosNuevoPeriodo['fecha_fin'],    // nueva_fecha_fin
+            $datosNuevoPeriodo['local_id'],
+            $datosNuevoPeriodo['area_id'],
+            $datosNuevoPeriodo['estado_periodo'] // 'Activo' o 'Futuro'
+        ])) {
+             throw new Exception("No se pudo insertar el nuevo período de retorno.");
+        }
+
+        // 3. Insertar el registro de la Adenda
+        if (!$this->agregarAdenda($datosAdenda)) {
+             throw new Exception("No se pudo registrar la adenda para la suspensión.");
+        }
+
+        $this->pdo->commit();
+        return true; // Éxito
+
+    } catch (Exception $e) {
+        $this->pdo->rollBack();
+        throw new Exception("Error en transacción registrarSuspension: " . $e->getMessage());
+    }
+}
     
     // --- Funciones de Reporte (sin cambios) ---
     public function contarConveniosPorVencer(int $dias = 30) { /* ... */ }

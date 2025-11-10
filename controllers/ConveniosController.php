@@ -440,4 +440,74 @@ class ConveniosController extends Controller {
             return false;
         }
     }
+    /**
+ * Guarda una adenda de CORTE/SUSPENSIÓN.
+ * Finaliza el período actual y crea uno nuevo a futuro.
+ */
+public function registrarCorte() {
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        $convenio_id = (int)$_POST['convenio_id'];
+        $practicante_id = (int)$_POST['practicante_id'];
+        $archivo = $_FILES['documento_adenda_corte'] ?? null; 
+
+        // Las 3 fechas clave
+        $fecha_suspension = trim($_POST['fecha_suspension']); // Último día
+        $fecha_retorno = trim($_POST['fecha_retorno']);       // Primer día de vuelta
+        $nueva_fecha_fin = trim($_POST['nueva_fecha_fin']);     // Nueva fecha fin total
+
+        $datosAdenda = [
+            'convenio_id' => $convenio_id,
+            'tipo_accion' => 'CORTE', 
+            'fecha_adenda' => trim($_POST['fecha_adenda']),
+            'descripcion' => trim($_POST['descripcion_corte']), 
+            'documento_adenda_url' => null 
+        ];
+
+        $datosNuevoPeriodo = [
+            'convenio_id' => $convenio_id,
+            'fecha_inicio' => $fecha_retorno,
+            'fecha_fin' => $nueva_fecha_fin,
+            'local_id' => (int)$_POST['local_id'],
+            'area_id' => (int)$_POST['area_id'],
+            'estado_periodo' => (strtotime($fecha_retorno) <= time()) ? 'Activo' : 'Futuro'
+        ];
+
+        // --- Validaciones ---
+        if (!$archivo || $archivo['error'] != UPLOAD_ERR_OK || $archivo['type'] != 'application/pdf') {
+            $_SESSION['mensaje_error'] = 'El Documento de Sustento (PDF) es obligatorio para la suspensión.';
+            header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
+            exit;
+        }
+         if (empty($fecha_suspension) || empty($fecha_retorno) || empty($nueva_fecha_fin) || empty($datosAdenda['fecha_adenda'])) {
+             $_SESSION['mensaje_error'] = 'Todas las fechas (suspensión, retorno, nueva fecha fin y fecha de adenda) son obligatorias.';
+             header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
+             exit;
+         }
+        // --- Fin Validaciones ---
+
+        $url_relativa = $this->moverDocumento($archivo, $practicante_id, $convenio_id, 'ADENDA_CORTE');
+        if (!$url_relativa) {
+             $_SESSION['mensaje_error'] = 'Error al guardar el documento de adenda de corte.';
+             header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
+             exit;
+        }
+        $datosAdenda['documento_adenda_url'] = $url_relativa;
+
+        try {
+            // Llamar al nuevo método del modelo
+            if($this->convenioModel->registrarSuspension($datosNuevoPeriodo, $datosAdenda, $fecha_suspension)){
+                $_SESSION['mensaje_exito'] = 'Suspensión registrada. El período anterior se cerró y se creó un nuevo período futuro.';
+            } else {
+                 $_SESSION['mensaje_error'] = 'Error al procesar la suspensión en la base de datos.';
+            }
+        } catch (Exception $e) {
+             error_log("Error en ConveniosController::registrarCorte(): " . $e->getMessage());
+            $_SESSION['mensaje_error'] = 'Error al guardar suspensión: ' . $e->getMessage();
+        }
+        header('Location: index.php?c=convenios&m=gestionar&id=' . $convenio_id);
+        exit;
+    }
+    header('Location: index.php?c=convenios');
+    exit;
+}
 } // Fin de la clase ConveniosController

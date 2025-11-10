@@ -4,6 +4,24 @@ $c = $data['convenio']; // Datos del convenio
 $esVigente = ($c['estado_convenio'] == 'Vigente');
 $periodo_activo = $data['periodo_activo']; // Datos del período activo actual (o null si no hay)
 $fecha_fin_actual = $data['fecha_fin_actual']; // Fecha fin YYYY-MM-DD del período activo (o hoy)
+
+// --- NUEVA LÓGICA PARA FECHAS Y ADENDAS ---
+$periodos = $c['periodos'] ?? [];
+$num_adendas = count($c['adendas'] ?? []);
+$fecha_inicio_real = 'N/A';
+$fecha_fin_real = 'N/A';
+
+if (!empty($periodos)) {
+    // Los períodos vienen ordenados por fecha_inicio DESC,
+    // así que el último del array es el primero cronológicamente
+    $primer_periodo = end($periodos);
+    $fecha_inicio_real = date("d/m/Y", strtotime($primer_periodo['fecha_inicio']));
+    
+    // Y el primero del array es el que tiene la fecha de inicio más reciente
+    $ultimo_periodo = reset($periodos);
+    $fecha_fin_real = date("d/m/Y", strtotime($ultimo_periodo['fecha_fin']));
+}
+// --- FIN NUEVA LÓGICA ---
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -45,6 +63,11 @@ if (isset($_SESSION['mensaje_error'])) {
             <div class="card-header"><i class="bi bi-file-earmark-text"></i> Convenio</div>
             <div class="card-body">
                 <p class="mb-1"><strong>Tipo:</strong> <?php echo htmlspecialchars($c['tipo_practica']); ?></p>
+                <p class="mb-1"><strong>Inicio (Original):</strong> <?php echo $fecha_inicio_real; ?></p>
+                <p class="mb-1"><strong>Fin (Vigente):</strong> <?php echo $fecha_fin_real; ?></p>
+                <p class="mb-1"><strong>Adendas:</strong> 
+                    <span class="badge bg-info text-dark"><?php echo $num_adendas; ?></span>
+                </p>
                 <p class="mb-0"><strong>Estado:</strong> 
                     <span class="badge <?php echo $esVigente ? 'bg-success' : 'bg-secondary'; ?>">
                         <?php echo htmlspecialchars($c['estado_convenio']); ?>
@@ -162,8 +185,11 @@ if (isset($_SESSION['mensaje_error'])) {
                                 <td>
                                     <?php if (!empty($a['documento_adenda_url'])): ?>
                                         <a href="<?php echo htmlspecialchars($a['documento_adenda_url']); ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                            <i class="bi bi-eye-fill"></i> Ver Adenda
+                                            <i class="bi bi-eye-fill"></i> Ver Sustento
                                         </a>
+                                        <button class="btn btn-sm btn-outline-success" disabled title="Subir Adenda Firmada (requiere desarrollo)">
+                                            <i class="bi bi-upload"></i> Subir Firmada
+                                        </button>
                                     <?php else: ?>
                                         <span class="text-muted fst-italic small">(Sin documento adjunto)</span>
                                     <?php endif; ?>
@@ -181,7 +207,7 @@ if (isset($_SESSION['mensaje_error'])) {
             <div class="tab-pane fade" id="acciones" role="tabpanel">
                 
                 <div class="alert alert-warning small <?php echo ($esVigente && $c['estado_firma'] == 'Firmado') ? '' : 'd-none'; ?>">
-                   <i class="bi bi-exclamation-triangle-fill"></i> Recuerde que cualquier modificación (adenda) o cese requiere subir el documento PDF que lo sustenta.
+                   <i class="bi bi-exclamation-triangle-fill"></i> Recuerde que cualquier modificación (adenda) o cese requiere subir el documento PDF que lo sustenta (solicitud, memo, etc.).
                 </div>
                  <div class="alert alert-danger small <?php echo ($c['estado_firma'] != 'Firmado') ? '' : 'd-none'; ?>">
                    <i class="bi bi-exclamation-octagon-fill"></i> Las acciones están deshabilitadas hasta que suba el Convenio Principal firmado en la pestaña "Firmas y Documentos".
@@ -226,9 +252,9 @@ if (isset($_SESSION['mensaje_error'])) {
                                      <div class="invalid-feedback">Ingrese la fecha del documento de adenda.</div>
                                 </div>
                                  <div class="col-md-6">
-                                    <label class="form-label">Documento Adenda (PDF) <span class="text-danger">*</span></label>
+                                    <label class="form-label">Doc. de Sustento (Solicitud/Memo) <span class="text-danger">*</span></label>
                                     <input type="file" name="documento_adenda_amp" class="form-control form-control-sm" accept=".pdf" required>
-                                     <div class="invalid-feedback">Suba el PDF de la adenda firmada.</div>
+                                     <div class="invalid-feedback">Suba el PDF de la solicitud.</div>
                                 </div>
                                 <div class="col-md-12">
                                     <label class="form-label">Descripción / Justificación (Opcional)</label>
@@ -241,7 +267,7 @@ if (isset($_SESSION['mensaje_error'])) {
 
                     <div id="form-reubicacion" class="accion-form p-3 border rounded bg-light shadow-sm" style="display:none;">
                         <h6 class="text-info mb-3"><i class="bi bi-geo-alt-fill"></i> Registrar Adenda de Reubicación</h6>
-                        <p class="text-muted small">Finalizará el período actual y creará uno nuevo con la nueva ubicación/área.</p>
+                        <p class="text-muted small">Esto finalizará el período actual (el día anterior al inicio del nuevo) y creará uno nuevo con la nueva ubicación/área.</p>
                         <form action="index.php?c=convenios&m=guardarPeriodo" method="POST" class="needs-validation" enctype="multipart/form-data" novalidate>
                             <input type="hidden" name="convenio_id" value="<?php echo $c['convenio_id']; ?>">
                             <input type="hidden" name="practicante_id" value="<?php echo $c['practicante_id']; ?>">
@@ -252,15 +278,15 @@ if (isset($_SESSION['mensaje_error'])) {
                                 <div class="col-md-6">
                                     <label class="form-label">Fecha Inicio (Nuevo Período) <span class="text-danger">*</span></label>
                                     <input type="date" name="fecha_inicio" class="form-control form-control-sm" id="nuevo_fecha_inicio_reub" value="<?php echo date('Y-m-d', strtotime('+1 day')); ?>" required>
+                                    <small class="text-muted">El período activo actual se cerrará el día anterior a esta fecha.</small>
                                     <div class="invalid-feedback">Ingrese la fecha de inicio de la reubicación.</div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Fecha Fin (Nuevo Período) <span class="text-danger">*</span></label>
-                                    <input type="date" name="fecha_fin" class="form-control form-control-sm" id="nuevo_fecha_fin_reub" required>
+                                    <input type="date" name="fecha_fin" class="form-control form-control-sm" id="nuevo_fecha_fin_reub" value="<?php echo $fecha_fin_actual; // Mantiene la fecha fin original ?>" required>
                                     <div class="btn-group btn-group-sm mt-1" role="group">
                                         <button type="button" class="btn btn-outline-secondary btn-calc-fecha" data-meses="4" data-inicio="nuevo_fecha_inicio_reub" data-fin="nuevo_fecha_fin_reub">4 Meses</button>
                                         <button type="button" class="btn btn-outline-secondary btn-calc-fecha" data-meses="6" data-inicio="nuevo_fecha_inicio_reub" data-fin="nuevo_fecha_fin_reub">6 Meses</button>
-                                        <button type="button" class="btn btn-outline-secondary btn-calc-fecha" data-meses="12" data-inicio="nuevo_fecha_inicio_reub" data-fin="nuevo_fecha_fin_reub">1 Año</button>
                                     </div>
                                     <div class="invalid-feedback">Ingrese la fecha de fin del convenio tras la reubicación.</div>
                                 </div>
@@ -294,9 +320,9 @@ if (isset($_SESSION['mensaje_error'])) {
                                     <div class="invalid-feedback">Ingrese la fecha del documento.</div>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">Documento Adenda (PDF) <span class="text-danger">*</span></label>
+                                    <label class="form-label">Doc. de Sustento (Solicitud/Memo) <span class="text-danger">*</span></label>
                                     <input type="file" name="documento_adenda_reub" class="form-control form-control-sm" accept=".pdf" required>
-                                     <div class="invalid-feedback">Suba el PDF de la adenda.</div>
+                                     <div class="invalid-feedback">Suba el PDF de la solicitud.</div>
                                 </div>
                                 <div class="col-md-12">
                                     <label class="form-label">Descripción / Justificación (Opcional)</label>
@@ -308,27 +334,33 @@ if (isset($_SESSION['mensaje_error'])) {
                     </div>
                     
                     <div id="form-corte" class="accion-form p-3 border rounded bg-light shadow-sm" style="display:none;">
-                        <h6 class="text-warning mb-3"><i class="bi bi-calendar-minus"></i> Registrar Adenda de Corte o Suspensión</h6>
-                        <p class="text-muted small">Finalizará el período actual. Cuando el practicante retorne, deberá usar esta misma opción para registrar el nuevo período de inicio.</p>
+                        <h6 class="text-warning mb-3"><i class="bi bi-calendar-minus"></i> Registrar Adenda de Corte / Suspensión</h6>
+                        <p class="text-muted small">Esto cerrará el período actual en la fecha que indiques y creará un nuevo período futuro con la fecha de retorno y la nueva fecha fin.</p>
                         <form action="index.php?c=convenios&m=guardarPeriodo" method="POST" class="needs-validation" enctype="multipart/form-data" novalidate>
                             <input type="hidden" name="convenio_id" value="<?php echo $c['convenio_id']; ?>">
                             <input type="hidden" name="practicante_id" value="<?php echo $c['practicante_id']; ?>">
                             <input type="hidden" name="tipo_accion" value="CORTE">
-                            <input type="hidden" name="local_id" value="<?php echo $periodo_activo['local_id'] ?? ''; ?>">
-                            <input type="hidden" name="area_id" value="<?php echo $periodo_activo['area_id'] ?? ''; ?>">
+                            <input type="hidden" name="local_id" value="<?php echo $periodo_activo['local_id'] ?? $data['locales'][0]['local_id']; ?>">
+                            <input type="hidden" name="area_id" value="<?php echo $periodo_activo['area_id'] ?? $data['areas'][0]['area_id']; ?>">
                             
                             <div class="row g-3">
                                 <p class="mb-1 fw-bold small">Datos del Nuevo Período (Tras el Corte/Suspensión):</p>
                                 <div class="col-md-6">
-                                    <label class="form-label">Fecha Inicio (Retorno) <span class="text-danger">*</span></label>
-                                    <input type="date" name="fecha_inicio" class="form-control form-control-sm" id="nuevo_fecha_inicio_corte" required>
-                                    <div class="invalid-feedback">Ingrese la fecha en que se retoman las prácticas.</div>
+                                    <label class="form-label">Fecha de Suspensión (Último día laborado) <span class="text-danger">*</span></label>
+                                    <input type="date" name="fecha_suspension" class="form-control form-control-sm" id="corte_fecha_suspension" value="<?php echo date('Y-m-d'); ?>" required>
+                                    <small class="text-muted">El período activo se cerrará en esta fecha.</small>
+                                    <div class="invalid-feedback">Indique el último día laborado.</div>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">Fecha Fin (Final del Convenio) <span class="text-danger">*</span></label>
-                                    <input type="date" name="fecha_fin" class="form-control form-control-sm" id="nuevo_fecha_fin_corte" value="<?php echo $fecha_fin_actual; // Por defecto, mantiene la fecha fin original ?>" required>
-                                    <small class="text-muted">Si la suspensión afecta la fecha fin total, ajústela aquí.</small>
-                                    <div class="invalid-feedback">Ingrese la fecha final del convenio.</div>
+                                    <label class="form-label">Fecha de Retorno (Primer día de vuelta) <span class="text-danger">*</span></label>
+                                    <input type="date" name="fecha_retorno" class="form-control form-control-sm" id="corte_fecha_retorno" required>
+                                    <div class="invalid-feedback">Indique la fecha de retorno.</div>
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label">Nueva Fecha Fin del Convenio (Ajustada) <span class="text-danger">*</span></label>
+                                    <input type="date" name="nueva_fecha_fin" class="form-control form-control-sm" id="corte_nueva_fecha_fin" value="<?php echo $fecha_fin_actual; // Por defecto, mantiene la fecha fin original ?>" required>
+                                    <small class="text-muted">Debe ser la nueva fecha final total del convenio, considerando los días de suspensión.</small>
+                                    <div class="invalid-feedback">Ingrese la nueva fecha final del convenio.</div>
                                 </div>
                                 
                                 <hr class="my-3">
@@ -340,9 +372,9 @@ if (isset($_SESSION['mensaje_error'])) {
                                     <div class="invalid-feedback">Ingrese la fecha del documento.</div>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="form-label">Documento Adenda (PDF) <span class="text-danger">*</span></label>
+                                    <label class="form-label">Doc. de Sustento (Solicitud/Memo) <span class="text-danger">*</span></label>
                                     <input type="file" name="documento_adenda_corte" class="form-control form-control-sm" accept=".pdf" required>
-                                    <div class="invalid-feedback">Suba el PDF de la adenda.</div>
+                                    <div class="invalid-feedback">Suba el PDF de la solicitud.</div>
                                 </div>
                                 <div class="col-md-12">
                                     <label class="form-label">Descripción / Justificación (Opcional)</label>
@@ -368,6 +400,7 @@ if (isset($_SESSION['mensaje_error'])) {
                                         <option value="">Seleccione...</option>
                                         <option value="Renuncia">Renuncia Voluntaria</option>
                                         <option value="Cancelado">Cancelación (Error Admin.)</option>
+                                        <option value="Finalizado">Finalización (Término normal)</option>
                                     </select>
                                     <div class="invalid-feedback">Seleccione el motivo del cese.</div>
                                 </div>
@@ -413,6 +446,7 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                  if(campoDocRenuncia) campoDocRenuncia.style.display = 'none';
                  if(inputDocRenuncia) inputDocRenuncia.required = false;
+                 if(inputDocRenuncia) inputDocRenuncia.value = ''; // Limpiar si se cambia a "Cancelado"
             }
         } else {
             // Asegurarse que esté oculto y no requerido si no estamos en 'cese'
@@ -437,17 +471,40 @@ document.addEventListener('DOMContentLoaded', function() {
     function calcularFechaFin(fechaInicioStr, meses) {
         let fechaInicio;
         if (!fechaInicioStr) {
+            // Si no hay fecha de inicio (ej. calculando desde fin actual), usar la fecha actual como base
             fechaInicio = new Date(); 
         } else {
             const partes = fechaInicioStr.split('-'); 
+            // OJO: Meses en JS son 0-11
             fechaInicio = new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10));
         }
         
         const fechaFin = new Date(fechaInicio.getTime());
         fechaFin.setMonth(fechaFin.getMonth() + parseInt(meses, 10));
-        fechaFin.setDate(fechaFin.getDate() - 1);
+        // Restar un día para que sea inclusivo (ej. 10 Ene + 1 Mes = 9 Feb)
+        fechaFin.setDate(fechaFin.getDate() - 1); 
         
         return fechaFin.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+    }
+
+    // --- LÓGICA DE CÁLCULO DE FECHA (PARA AMPLIACIÓN) ---
+    function calcularFechaFinAmpliacion(fechaBaseStr, meses) {
+         if (!fechaBaseStr) return '';
+         const partes = fechaBaseStr.split('-'); 
+         // Fecha base (que es la FECHA FIN ACTUAL)
+         const fechaBase = new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10));
+         
+         // 1. Añadir un día para empezar a contar desde el día SIGUIENTE al fin
+         fechaBase.setDate(fechaBase.getDate() + 1);
+         
+         // 2. Añadir los meses
+         const fechaFin = new Date(fechaBase.getTime());
+         fechaFin.setMonth(fechaFin.getMonth() + parseInt(meses, 10));
+         
+         // 3. Restar un día
+         fechaFin.setDate(fechaFin.getDate() - 1);
+         
+         return fechaFin.toISOString().split('T')[0];
     }
     
     const botonesCalc = document.querySelectorAll('.btn-calc-fecha');
@@ -464,17 +521,24 @@ document.addEventListener('DOMContentLoaded', function() {
             if (inputFechaInicio && inputFechaFin) {
                 let fechaInicioBase = inputFechaInicio.value;
                 
-                // Si el campo de inicio está deshabilitado (ej. ampliación usa fin_actual) o vacío, usa su valor (o hoy si está vacío)
-                if (!fechaInicioBase || inputFechaInicio.readOnly || inputFechaInicio.disabled) {
-                     fechaInicioBase = inputFechaInicio.value || new Date().toISOString().split('T')[0];
-                     // Si el input de inicio estaba vacío y lo rellenamos, actualizamos el campo
-                     if (!inputFechaInicio.value && !(inputFechaInicio.readOnly || inputFechaInicio.disabled)) {
-                         inputFechaInicio.value = fechaInicioBase;
-                     }
+                // Si el campo de inicio está vacío, rellenarlo con hoy
+                if (!fechaInicioBase && !(inputFechaInicio.readOnly || inputFechaInicio.disabled)) {
+                    fechaInicioBase = new Date().toISOString().split('T')[0];
+                    inputFechaInicio.value = fechaInicioBase;
+                } else if (!fechaInicioBase) {
+                     fechaInicioBase = new Date().toISOString().split('T')[0];
+                }
+
+                // *** DISTINGUIR LÓGICA DE CÁLCULO ***
+                if (idInicio === 'ampl_fecha_fin_actual') {
+                    // Es una ampliación, usamos la lógica de sumar a la fecha fin
+                    inputFechaFin.value = calcularFechaFinAmpliacion(fechaInicioBase, meses);
+                } else {
+                    // Es un período nuevo, usamos la lógica de inicio + meses
+                    inputFechaFin.value = calcularFechaFin(fechaInicioBase, meses);
                 }
                 
-                inputFechaFin.value = calcularFechaFin(fechaInicioBase, meses);
-                 // Disparar evento change para compatibilidad con validaciones u otros scripts
+                 // Disparar evento change para compatibilidad con validaciones
                  inputFechaFin.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
@@ -487,6 +551,17 @@ document.addEventListener('DOMContentLoaded', function() {
       Array.prototype.slice.call(forms)
         .forEach(function (form) {
           form.addEventListener('submit', function (event) {
+            
+            // Re-validar la visibilidad del campo de renuncia ANTES de enviar
+            if (selector.value === 'cese') {
+                 const motivoCese = selectMotivoCese ? selectMotivoCese.value : '';
+                 if (motivoCese === 'Renuncia') {
+                    if(inputDocRenuncia) inputDocRenuncia.required = true;
+                 } else {
+                    if(inputDocRenuncia) inputDocRenuncia.required = false;
+                 }
+            }
+
             if (!form.checkValidity()) {
               event.preventDefault();
               event.stopPropagation();

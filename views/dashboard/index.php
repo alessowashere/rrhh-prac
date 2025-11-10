@@ -18,7 +18,7 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <h5 class="card-title mb-0">ACTIVOS</h5>
-                                <p class="card-text fs-1 fw-bold"><?php echo htmlspecialchars($data['practicantes_activos']); ?></p>
+                                <p class="card-text fs-1 fw-bold"><?php echo htmlspecialchars($data['practicantes_activos'] ?? 0); ?></p>
                             </div>
                             <i class="bi bi-people-fill" style="font-size: 3.5rem; opacity: 0.5;"></i>
                         </div>
@@ -34,7 +34,7 @@
                          <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <h5 class="card-title mb-0">EN PROCESO</h5>
-                                <p class="card-text fs-1 fw-bold"><?php echo htmlspecialchars($data['candidatos_proceso']); ?></p>
+                                <p class="card-text fs-1 fw-bold"><?php echo htmlspecialchars($data['candidatos_proceso'] ?? 0); ?></p>
                             </div>
                             <i class="bi bi-person-plus-fill" style="font-size: 3.5rem; opacity: 0.5;"></i>
                         </div>
@@ -50,7 +50,7 @@
                          <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <h5 class="card-title mb-0">POR VENCER</h5>
-                                <p class="card-text fs-1 fw-bold"><?php echo htmlspecialchars($data['convenios_por_vencer']); ?></p>
+                                <p class="card-text fs-1 fw-bold"><?php echo htmlspecialchars($data['convenios_por_vencer'] ?? 0); ?></p>
                             </div>
                             <i class="bi bi-calendar-x" style="font-size: 3.5rem; opacity: 0.5;"></i>
                         </div>
@@ -81,7 +81,7 @@
                                         <div class="fw-bold"><?php echo htmlspecialchars($p['apellidos'] . ', ' . $p['nombres']); ?></div>
                                         <small class="text-muted">DNI: <?php echo htmlspecialchars($p['dni']); ?></small>
                                     </td>
-                                    <td><?php echo htmlspecialchars($p['escuela_nombre']); ?></td>
+                                    <td><?php echo htmlspecialchars($p['escuela_nombre'] ?? 'N/A'); ?></td>
                                     <td>
                                         <a href="index.php?c=convenios&m=crear&proceso_id=<?php echo $p['proceso_id']; ?>&practicante_id=<?php echo $p['practicante_id']; ?>" class="btn btn-sm btn-primary">
                                             <i class="bi bi-plus-circle"></i> Crear Convenio
@@ -112,7 +112,7 @@
                             </a>
                             <small class="d-block text-muted">
                                 Asignado a <?php echo htmlspecialchars($u['area_nombre'] ?? 'N/A'); ?>
-                                <span class="badge bg-info-subtle text-info-emphasis rounded-pill ms-1"><?php echo htmlspecialchars($u['tipo_practica']); ?></span>
+                                <span class="badge bg-info-subtle text-info-emphasis rounded-pill ms-1"><?php echo htmlspecialchars($u['tipo_practica'] ?? 'N/A'); ?></span>
                             </small>
                         </div>
                         <a href="index.php?c=convenios&m=gestionar&id=<?php echo $u['convenio_id']; ?>" class="btn btn-sm btn-outline-secondary">
