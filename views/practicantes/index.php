@@ -1,176 +1,94 @@
-<?php
-// views/practicantes/index.php
-$counts = $data['counts'];
-?>
-
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2"><?php echo htmlspecialchars($data['titulo'] ?? 'Practicantes'); ?></h1>
+<?php // views/practicantes/index.php ?>
+<div class="d-flex justify-content-between align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2"><i class="bi bi-people text-primary"></i> Directorio General</h1>
+    <div class="btn-group">
+        <a href="index.php?c=practicantes&m=importar" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-excel"></i> Carga Masiva (CSV)
+        </a>
+    </div>
 </div>
 
-<?php 
-// Mostrar mensajes de éxito o error
-if (isset($_SESSION['mensaje_exito'])) {
-    echo '<div class="alert alert-success alert-dismissible fade show" role="alert">' . $_SESSION['mensaje_exito'] . '
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
-    unset($_SESSION['mensaje_exito']);
-}
-if (isset($_SESSION['mensaje_error'])) {
-    echo '<div class="alert alert-danger alert-dismissible fade show" role="alert">' . $_SESSION['mensaje_error'] . '
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
-    unset($_SESSION['mensaje_error']);
-}
-?>
-
-<div class="card shadow-sm">
-    <div class="card-header">
-        <div class="d-flex justify-content-between align-items-center">
-            <ul class="nav nav-tabs card-header-tabs" id="filtro-estados" role="tablist">
-                <li class="nav-item">
-                    <button class="nav-link active" id="tab-todos" data-bs-toggle="tab" data-filtro="Todos" type="button">
-                        Todos <span class="badge bg-secondary"><?php echo $counts['total']; ?></span>
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link" id="tab-activos" data-bs-toggle="tab" data-filtro="Activo" type="button">
-                        Activos <span class="badge bg-success"><?php echo $counts['activos']; ?></span>
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link" id="tab-cesados" data-bs-toggle="tab" data-filtro="Cesado" type="button">
-                        Cesados <span class="badge bg-danger"><?php echo $counts['cesados']; ?></span>
-                    </button>
-                </li>
-            </ul>
-            <div class="ms-3" style="width: 300px;">
-                <input type="text" id="buscador" class="form-control form-control-sm" placeholder="Buscar por DNI, Nombre, Escuela...">
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-3">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <ul class="nav nav-pills small" id="filtro-estados">
+                    <li class="nav-item"><button class="nav-link active" data-filtro="Todos">Todos (<?php echo $data['counts']['total']; ?>)</button></li>
+                    <li class="nav-item"><button class="nav-link" data-filtro="Activo">Activos</button></li>
+                    <li class="nav-item"><button class="nav-link" data-filtro="Cesado">Cesados</button></li>
+                </ul>
+            </div>
+            <div class="col-md-6 text-end">
+                <input type="text" id="buscador" class="form-control form-control-sm d-inline-block w-75" placeholder="Buscar por DNI, Nombre o Escuela...">
             </div>
         </div>
     </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-striped table-hover table-sm">
-                <thead class="table-light">
-                    <tr>
-                        <th scope="col">DNI</th>
-                        <th scope="col">Apellidos</th>
-                        <th scope="col">Nombres</th>
-                        <th scope="col">Universidad</th>
-                        <th scope="col">Escuela Profesional</th>
-                        <th scope="col">Estado</th>
-                        <th scope="col">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="tabla-practicantes">
-                    <?php if (empty($data['practicantes'])): ?>
-                        <tr id="fila-no-datos">
-                            <td colspan="7" class="text-center">No hay practicantes registrados.</td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($data['practicantes'] as $p): 
-                            $estado = htmlspecialchars($p['estado_general']);
-                        ?>
-                        <tr data-estado="<?php echo $estado; ?>">
-                            <td><?php echo htmlspecialchars($p['dni']); ?></td>
-                            <td><?php echo htmlspecialchars($p['apellidos']); ?></td>
-                            <td><?php echo htmlspecialchars($p['nombres']); ?></td>
-                            <td><?php echo htmlspecialchars($p['universidad_nombre']); ?></td>
-                            <td><?php echo htmlspecialchars($p['escuela_nombre']); ?></td>
-                            <td>
-                                <span class="badge <?php echo $estado == 'Activo' ? 'bg-success' : 'bg-danger'; ?>">
-                                    <?php echo $estado; ?>
-                                </span>
-                            </td>
-                            <td>
-                                <a href="index.php?c=practicantes&m=ver&id=<?php echo $p['practicante_id']; ?>" class="btn btn-sm btn-primary" title="Ver Perfil">
-                                    <i class="bi bi-eye-fill"></i>
-                                </a>
-                                <a href="index.php?c=practicantes&m=editar&id=<?php echo $p['practicante_id']; ?>" class="btn btn-sm btn-warning" title="Editar Datos">
-                                    <i class="bi bi-pencil-fill"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                         <tr id="fila-no-coincidencias" style="display: none;">
-                            <td colspan="7" class="text-center text-muted">No se encontraron coincidencias.</td>
-                        </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Practicante</th>
+                    <th>Escuela Profesional</th>
+                    <th class="text-center">Documentación</th>
+                    <th>Estado</th>
+                    <th class="text-end">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="tabla-practicantes">
+                <?php foreach ($data['practicantes'] as $p): 
+                    $docs = (int)$p['total_docs'];
+                    $color_semaforo = ($docs >= 4) ? 'success' : (($docs >= 2) ? 'warning' : 'danger');
+                ?>
+                <tr data-estado="<?php echo $p['estado_general']; ?>">
+                    <td>
+                        <div class="fw-bold text-dark"><?php echo $p['apellidos'] . ", " . $p['nombres']; ?></div>
+                        <small class="text-muted">DNI: <?php echo $p['dni']; ?></small>
+                    </td>
+                    <td><small><?php echo $p['escuela_nombre']; ?></small></td>
+                    <td class="text-center">
+                        <span class="badge rounded-pill bg-<?php echo $color_semaforo; ?>-subtle text-<?php echo $color_semaforo; ?> border border-<?php echo $color_semaforo; ?>">
+                            <i class="bi bi-file-earmark-check"></i> <?php echo $docs; ?> docs
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge bg-<?php echo $p['estado_general'] == 'Activo' ? 'success' : 'secondary'; ?>-subtle text-<?php echo $p['estado_general'] == 'Activo' ? 'success' : 'secondary'; ?> border">
+                            <?php echo $p['estado_general']; ?>
+                        </span>
+                    </td>
+                    <td class="text-end">
+                        <a href="index.php?c=practicantes&m=ver&id=<?php echo $p['practicante_id']; ?>" class="btn btn-sm btn-light border" title="Ver Perfil"><i class="bi bi-eye"></i></a>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 
 <script>
+// Lógica de filtrado (Similar a la anterior pero optimizada para el nuevo diseño)
 document.addEventListener('DOMContentLoaded', function() {
-    
-    const botonesFiltro = document.querySelectorAll('#filtro-estados .nav-link');
+    const botones = document.querySelectorAll('#filtro-estados .nav-link');
     const buscador = document.getElementById('buscador');
-    const tablaPracticantes = document.getElementById('tabla-practicantes');
-    const filas = tablaPracticantes.getElementsByTagName('tr');
-    const filaNoCoincidencias = document.getElementById('fila-no-coincidencias');
-    const filaNoDatos = document.getElementById('fila-no-datos'); // La fila original de "no hay datos"
-    
-    let filtroActivo = 'Todos'; // Estado inicial
+    const filas = document.querySelectorAll('#tabla-practicantes tr');
 
-    function filtrarTabla() {
-        let textoBusqueda = buscador.value.toLowerCase();
-        let filasVisibles = 0;
-
-        for (let fila of filas) {
-            // Ignorar las filas de "no hay datos" o "no hay coincidencias"
-            if (fila.id === 'fila-no-coincidencias' || fila.id === 'fila-no-datos') continue;
-            if (fila.getElementsByTagName('td').length < 7) continue;
-
-
-            let estadoFila = fila.getAttribute('data-estado');
-            let textoFila = fila.innerText.toLowerCase();
-
-            // 1. Comprobar filtro de ESTADO (pestaña)
-            const PasaFiltroEstado = (filtroActivo === 'Todos' || filtroActivo === estadoFila);
-
-            // 2. Comprobar filtro de BÚSQUEDA
-            const PasaFiltroBusqueda = (textoBusqueda === '' || textoFila.includes(textoBusqueda));
-
-            // 3. Mostrar/Ocultar
-            if (PasaFiltroEstado && PasaFiltroBusqueda) {
-                fila.style.display = ""; // (reset a 'table-row')
-                filasVisibles++;
-            } else {
-                fila.style.display = "none";
-            }
-        }
-        
-        // Mostrar/Ocultar mensaje de "no hay coincidencias"
-        if (filaNoCoincidencias) {
-             filaNoCoincidencias.style.display = (filasVisibles === 0 && !filaNoDatos) ? "" : "none";
-        }
-        
-        // Ocultar "no hay practicantes" si estamos buscando
-         if (filaNoDatos && textoBusqueda !== '') {
-            filaNoDatos.style.display = 'none';
-        } else if (filaNoDatos && textoBusqueda === '' && filtroActivo === 'Todos') {
-             filaNoDatos.style.display = (filasVisibles > 0) ? 'none' : '';
-        }
+    function filtrar() {
+        const busqueda = buscador.value.toLowerCase();
+        const filtro = document.querySelector('#filtro-estados .active').dataset.filtro;
+        filas.forEach(f => {
+            const texto = f.innerText.toLowerCase();
+            const estado = f.dataset.estado;
+            const matchBusqueda = texto.includes(busqueda);
+            const matchEstado = filtro === 'Todos' || estado === filtro;
+            f.style.display = (matchBusqueda && matchEstado) ? '' : 'none';
+        });
     }
 
-    // Evento para las pestañas
-    botonesFiltro.forEach(boton => {
-        boton.addEventListener('click', function(e) {
-            e.preventDefault();
-            
-            // Gestionar clase 'active' manualmente para asegurar que funciona
-            botonesFiltro.forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-
-            filtroActivo = this.getAttribute('data-filtro');
-            filtrarTabla();
-        });
-    });
-
-    // Evento para el buscador
-    buscador.addEventListener('keyup', filtrarTabla);
-
-    // Carga inicial (para asegurar que 'Todos' esté activo)
-    filtrarTabla();
+    botones.forEach(b => b.addEventListener('click', (e) => {
+        botones.forEach(btn => btn.classList.remove('active'));
+        e.target.classList.add('active');
+        filtrar();
+    }));
+    buscador.addEventListener('input', filtrar);
 });
 </script>

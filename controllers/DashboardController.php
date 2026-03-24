@@ -4,42 +4,32 @@
 class DashboardController extends Controller {
     
     public function index() {
-        // --- Lógica del Dashboard ---
-        
         // 1. Instanciar modelos necesarios
         $practicanteModel = $this->model('PracticanteModel');
         $reclutamientoModel = $this->model('ReclutamientoModel');
         $convenioModel = $this->model('ConvenioModel');
 
-        // 2. Obtener datos de los modelos
-        
-        // --- Contadores para los KPIs ---
-        $activos = $practicanteModel->contarActivos();
-        $candidatos = $reclutamientoModel->contarEnProceso();
-        $porVencerCount = $convenioModel->contarConveniosPorVencer(30); // 30 días
+        // --- AUTOMATIZACIÓN: Ejecutar ceses al entrar ---
+        $cesados = $convenioModel->ejecutarCeseAutomatico();
+        if ($cesados > 0) {
+            $_SESSION['mensaje_info'] = "Se han detectado y cesado automáticamente $cesados practicante(s) con contrato vencido.";
+        }
 
-        // --- Listas para los Paneles ---
-        $pendientesConvenio = $convenioModel->getCandidatosAceptados();
-        $listaPorVencer = $convenioModel->getConveniosPorVencer(30);
-        $ultimosRegistrados = $convenioModel->getUltimosConveniosCreados(5);
-
-
-        // 3. Preparar array $data para la vista
+        // 2. Obtener datos actualizados para el Dashboard
         $data = [
-            'titulo' => 'Dashboard',
-            
-            // Datos para KPIs
-            'practicantes_activos' => $activos,
-            'candidatos_proceso' => $candidatos,
-            'convenios_por_vencer' => $porVencerCount,
-            
-            // Datos para Paneles de Listas
-            'pendientes_convenio' => $pendientesConvenio,
-            'lista_por_vencer' => $listaPorVencer,
-            'ultimos_registrados' => $ultimosRegistrados
+            'titulo' => 'Panel de Control Activo',
+            'kpis' => [
+                'activos'    => $practicanteModel->contarActivos(),
+                'en_proceso' => $reclutamientoModel->contarEnProceso(),
+                'criticos'   => $convenioModel->contarConveniosPorVencer(7), // Próximos 7 días
+                'por_vencer' => $convenioModel->contarConveniosPorVencer(30)
+            ],
+            'pendientes_convenio' => $convenioModel->getCandidatosAceptados(),
+            'lista_por_vencer'    => $convenioModel->getConveniosPorVencer(30),
+            'ultimos_registrados' => $convenioModel->getUltimosConveniosCreados(5)
         ];
 
-        // 4. Cargar la vista
+        // 3. Cargar la vista rediseñada
         $this->view('dashboard/index', $data);
     }
 }

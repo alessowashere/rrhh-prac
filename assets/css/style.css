@@ -1,0 +1,45 @@
+/* assets/css/style.css (Versión para Bootstrap) */
+
+/* Definimos nuestro color primario oscuro para el menú */
+:root {
+    --bs-primary-dark: #0d47a1; 
+}
+
+.bg-primary-dark {
+    background-color: var(--bs-primary-dark) !important;
+}
+
+/* --- Layout del Sidebar --- */
+.sidebar {
+    width: 260px; /* Ancho fijo del menú lateral */
+    flex-shrink: 0; /* Evita que se encoja */
+    transition: all 0.3s;
+    
+    /* --- LA CORRECCIÓN ESTÁ AQUÍ --- */
+    /* Le damos una posición para que 'z-index' funcione */
+    position: relative; 
+    /* Nos aseguramos que el menú esté en la capa superior (z-index: 10) */
+    z-index: 10; 
+}
+
+.main-content {
+    /* El contenido principal ocupa el resto */
+    overflow-y: auto; /* Permite scroll solo en el contenido */
+    max-height: 100vh;
+}
+
+/* --- Estilos de los links del Sidebar --- */
+.sidebar .nav-link {
+    padding: 10px 15px;
+    font-size: 0.95rem;
+    border-radius: 0.375rem; /* bootstrap .rounded */
+}
+
+.sidebar .nav-link:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.sidebar .nav-link.active {
+    background-color: rgba(255, 57, 57, 0.2);
+    font-weight: 500;
+}

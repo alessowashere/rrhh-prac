@@ -10,31 +10,26 @@ class PracticanteModel {
     }
 
     /**
-     * Obtiene la lista de practicantes (Activos y Cesados)
-     * para la vista principal.
+     * Obtiene la lista de practicantes con conteo de documentos para el semáforo.
      */
     public function getPracticantesList() {
         $sql = "SELECT 
                     p.practicante_id, p.dni, p.nombres, p.apellidos, p.estado_general,
                     ep.nombre AS escuela_nombre,
-                    u.nombre AS universidad_nombre
+                    u.nombre AS universidad_nombre,
+                    (SELECT COUNT(*) FROM Documentos d WHERE d.practicante_id = p.practicante_id) AS total_docs
                 FROM Practicantes p
                 LEFT JOIN EscuelasProfesionales ep ON p.escuela_profesional_id = ep.escuela_id
                 LEFT JOIN Universidades u ON ep.universidad_id = u.universidad_id
                 WHERE p.estado_general IN ('Activo', 'Cesado')
-                ORDER BY p.apellidos, p.nombres";
+                ORDER BY p.estado_general ASC, p.apellidos ASC";
         
         $stmt = $this->pdo->query($sql);
         return $stmt->fetchAll();
     }
 
-    /**
-     * Obtiene solo los datos de un practicante (para el form de editar).
-     */
     public function getPracticanteDetalle(int $id) {
-         $sql = "SELECT 
-                    p.*,
-                    ep.universidad_id
+         $sql = "SELECT p.*, ep.universidad_id
                 FROM Practicantes p 
                 LEFT JOIN EscuelasProfesionales ep ON p.escuela_profesional_id = ep.escuela_id
                 WHERE p.practicante_id = ?";
@@ -43,147 +38,51 @@ class PracticanteModel {
         return $stmt->fetch();
     }
 
-    /**
-     * Obtiene TODA la información de un practicante:
-     * Detalles, Convenios, Periodos, Adendas y Documentos.
-     */
     public function getInfoCompleta(int $practicante_id) {
-        $info = [
-            'detalle' => null,
-            'convenios' => [],
-            'documentos' => []
-        ];
-
-        // 1. Obtener detalles del practicante
-        $info['detalle'] = $this->getPracticanteDetalle($practicante_id);
-        if (!$info['detalle']) {
-            return $info; // Practicante no existe
-        }
+        $info = ['detalle' => $this->getPracticanteDetalle($practicante_id), 'convenios' => [], 'documentos' => []];
+        if (!$info['detalle']) return $info;
         
-        // 2. Obtener sus documentos
-        $sql_docs = "SELECT * FROM Documentos 
-                     WHERE practicante_id = ? 
-                     ORDER BY fecha_carga DESC";
-        $stmt_docs = $this->pdo->prepare($sql_docs);
+        $stmt_docs = $this->pdo->prepare("SELECT * FROM Documentos WHERE practicante_id = ? ORDER BY fecha_carga DESC");
         $stmt_docs->execute([$practicante_id]);
         $info['documentos'] = $stmt_docs->fetchAll();
 
-        // 3. Obtener sus convenios
-        $sql_conv = "SELECT c.*, pr.fecha_postulacion 
-                     FROM Convenios c
-                     LEFT JOIN ProcesosReclutamiento pr ON c.proceso_id = pr.proceso_id
-                     WHERE c.practicante_id = ? 
-                     ORDER BY c.convenio_id DESC";
-        $stmt_conv = $this->pdo->prepare($sql_conv);
+        $stmt_conv = $this->pdo->prepare("SELECT c.* FROM Convenios c WHERE c.practicante_id = ? ORDER BY c.convenio_id DESC");
         $stmt_conv->execute([$practicante_id]);
         $convenios = $stmt_conv->fetchAll();
 
-        // 4. Por cada convenio, obtener sus períodos y adendas
-        foreach ($convenios as $convenio) {
-            $convenio_id = $convenio['convenio_id'];
-            
-            // Periodos del convenio (con JOIN a Areas y Locales)
-            $sql_periodos = "SELECT pc.*, a.nombre AS area_nombre, l.nombre AS local_nombre
-                             FROM PeriodosConvenio pc
-                             LEFT JOIN Areas a ON pc.area_id = a.area_id
-                             LEFT JOIN Locales l ON pc.local_id = l.local_id
-                             WHERE pc.convenio_id = ?
-                             ORDER BY pc.fecha_inicio DESC";
-            $stmt_periodos = $this->pdo->prepare($sql_periodos);
-            $stmt_periodos->execute([$convenio_id]);
-            
-            // Adendas del convenio
-            $sql_adendas = "SELECT * FROM Adendas 
-                            WHERE convenio_id = ? 
-                            ORDER BY fecha_adenda DESC";
-            $stmt_adendas = $this->pdo->prepare($sql_adendas);
-            $stmt_adendas->execute([$convenio_id]);
-
-            // Añadir al array final
-            $info['convenios'][] = [
-                'info' => $convenio,
-                'periodos' => $stmt_periodos->fetchAll(),
-                'adendas' => $stmt_adendas->fetchAll()
-            ];
+        foreach ($convenios as $conv) {
+            $stmt_per = $this->pdo->prepare("SELECT pc.*, a.nombre as area_nombre FROM PeriodosConvenio pc LEFT JOIN Areas a ON pc.area_id = a.area_id WHERE pc.convenio_id = ? ORDER BY pc.fecha_inicio DESC");
+            $stmt_per->execute([$conv['convenio_id']]);
+            $info['convenios'][] = ['info' => $conv, 'periodos' => $stmt_per->fetchAll()];
         }
-
         return $info;
     }
 
-    /**
-     * Actualiza los datos de la tabla Practicantes.
-     */
     public function actualizarPracticante(array $data) {
-        $sql = "UPDATE Practicantes SET
-                    dni = ?,
-                    nombres = ?,
-                    apellidos = ?,
-                    fecha_nacimiento = ?,
-                    email = ?,
-                    telefono = ?,
-                    promedio_general = ?,
-                    escuela_profesional_id = ?,
-                    estado_general = ?
-                WHERE practicante_id = ?";
-        
-        $stmt = $this->pdo->prepare($sql);
-        return $stmt->execute([
-            $data['dni'],
-            $data['nombres'],
-            $data['apellidos'],
-            $data['fecha_nacimiento'],
-            $data['email'],
-            $data['telefono'],
-            $data['promedio_general'],
-            $data['escuela_id'],
-            $data['estado_general'],
-            $data['practicante_id']
-        ]);
+        $sql = "UPDATE Practicantes SET dni = ?, nombres = ?, apellidos = ?, fecha_nacimiento = ?, email = ?, telefono = ?, promedio_general = ?, escuela_profesional_id = ?, estado_general = ? WHERE practicante_id = ?";
+        return $this->pdo->prepare($sql)->execute([$data['dni'], $data['nombres'], $data['apellidos'], $data['fecha_nacimiento'], $data['email'], $data['telefono'], $data['promedio_general'], $data['escuela_id'], $data['estado_general'], $data['practicante_id']]);
     }
 
-    /**
-     * Obtiene catálogos para los dropdowns de los formularios.
-     */
     public function getCatalogosParaFormulario() {
-        $sql_uni = "SELECT universidad_id, nombre FROM Universidades ORDER BY nombre";
-        $stmt_uni = $this->pdo->query($sql_uni);
-        
-        $sql_esc = "SELECT escuela_id, universidad_id, nombre FROM EscuelasProfesionales ORDER BY nombre";
-        $stmt_esc = $this->pdo->query($sql_esc);
+        return [
+            'universidades' => $this->pdo->query("SELECT * FROM Universidades ORDER BY nombre")->fetchAll(),
+            'escuelas' => $this->pdo->query("SELECT * FROM EscuelasProfesionales ORDER BY nombre")->fetchAll()
+        ];
+    }
 
-        return [
-            'universidades' => $stmt_uni->fetchAll(),
-            'escuelas' => $stmt_esc->fetchAll()
-        ];
-    }
-    
-    /**
-     * Cuenta los practicantes 'Activos' para el Dashboard.
-     */
-    public function contarActivos() {
-        $sql = "SELECT COUNT(practicante_id) AS total FROM Practicantes WHERE estado_general = 'Activo'";
-        $stmt = $this->pdo->query($sql);
-        return $stmt->fetch()['total'] ?? 0;
-    }
-    
-    /**
-     * NUEVO: Obtiene los conteos de practicantes por estado (Activo/Cesado).
-     */
     public function getPracticanteCounts() {
-        $sql = "SELECT 
-                    COUNT(practicante_id) AS total,
-                    SUM(CASE WHEN estado_general = 'Activo' THEN 1 ELSE 0 END) AS activos,
-                    SUM(CASE WHEN estado_general = 'Cesado' THEN 1 ELSE 0 END) AS cesados
-                FROM Practicantes
-                WHERE estado_general IN ('Activo', 'Cesado')";
-        
-        $stmt = $this->pdo->query($sql);
-        $counts = $stmt->fetch();
-        
-        return [
-            'total' => $counts['total'] ?? 0,
-            'activos' => $counts['activos'] ?? 0,
-            'cesados' => $counts['cesados'] ?? 0
-        ];
+        $counts = $this->pdo->query("SELECT COUNT(*) as total, SUM(CASE WHEN estado_general='Activo' THEN 1 ELSE 0 END) as activos, SUM(CASE WHEN estado_general='Cesado' THEN 1 ELSE 0 END) as cesados FROM Practicantes WHERE estado_general IN ('Activo', 'Cesado')")->fetch();
+        return ['total' => $counts['total'] ?? 0, 'activos' => $counts['activos'] ?? 0, 'cesados' => $counts['cesados'] ?? 0];
+    }
+
+    /**
+     * [NUEVO] Lógica para Importación Masiva
+     */
+    public function importarPracticanteSimple($data) {
+        $sql = "INSERT INTO Practicantes (dni, nombres, apellidos, estado_general, escuela_profesional_id) 
+                VALUES (?, ?, ?, ?, (SELECT escuela_id FROM EscuelasProfesionales WHERE nombre LIKE ? LIMIT 1))
+                ON DUPLICATE KEY UPDATE nombres=VALUES(nombres), apellidos=VALUES(apellidos)";
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute([$data['dni'], $data['nombres'], $data['apellidos'], $data['estado'], "%".$data['escuela']."%"]);
     }
 }

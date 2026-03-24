@@ -1,0 +1,65 @@
+/*
+ * Estilos de Impresión para Reportes
+ */
+
+@media print {
+    
+    /* Ocultar todo lo que NO sea el reporte */
+    body * {
+        visibility: hidden;
+    }
+
+    /* Mostrar SÓLO el contenedor del reporte y su contenido */
+    .report-container, .report-container * {
+        visibility: visible;
+    }
+
+    /* Asegurarse de que el reporte ocupe toda la página */
+    .report-container {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: none;
+        box-shadow: none;
+    }
+
+    /* Ocultar los botones "Imprimir" y "Cerrar" */
+    .no-print, .no-print * {
+        display: none !important;
+    }
+
+    /* Evitar que las tablas se corten entre páginas (si es posible) */
+    .table, .table-responsive {
+        page-break-inside: auto;
+    }
+    
+    tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+
+    thead {
+        display: table-header-group; /* Repetir cabecera de tabla en cada página */
+    }
+
+    /* Quitar fondos y sombras para ahorrar tinta */
+    .table {
+        background-color: #fff !important;
+        border: 1px solid #333 !important;
+    }
+    
+    .table th, .table td {
+         border: 1px solid #ccc !important;
+         color: #000 !important;
+         background-color: #fff !important;
+    }
+
+    .alert {
+        border: 1px dashed #999;
+        background: #f9f9f9 !important;
+        color: #000 !important;
+    }
+}

@@ -9,126 +9,64 @@ class PracticantesController extends Controller {
         $this->practicanteModel = $this->model('PracticanteModel');
     }
 
-    /**
-     * Muestra la página principal con la lista de practicantes
-     * (Activos y Cesados).
-     */
     public function index() {
-        // Obtenemos la lista filtrada (solo Activos y Cesados)
-        $practicantes = $this->practicanteModel->getPracticantesList();
-        
-        // NUEVO: Obtener los conteos para las pestañas
-        $counts = $this->practicanteModel->getPracticanteCounts();
-        
         $data = [
-            'titulo' => 'Gestión de Practicantes',
-            'practicantes' => $practicantes,
-            'counts' => $counts // Pasar conteos a la vista
+            'titulo' => 'Directorio de Practicantes',
+            'practicantes' => $this->practicanteModel->getPracticantesList(),
+            'counts' => $this->practicanteModel->getPracticanteCounts()
         ];
-
         $this->view('practicantes/index', $data);
     }
 
-    /**
-     * Muestra el perfil detallado de un practicante.
-     * Esta es la vista más importante del módulo.
-     * Se accede vía ?c=practicantes&m=ver&id=PRACTICANTE_ID
-     */
     public function ver() {
         $id = (int)($_GET['id'] ?? 0);
-        
-        if ($id === 0) {
-            header('Location: index.php?c=practicantes');
-            exit;
-        }
-
-        // getInfoCompleta() trae al practicante, sus convenios,
-        // periodos, adendas y documentos, todo en un array anidado.
+        if ($id === 0) header('Location: index.php?c=practicantes');
         $info = $this->practicanteModel->getInfoCompleta($id);
+        if (!$info['detalle']) header('Location: index.php?c=practicantes');
 
-        if (!$info['detalle']) {
-            $_SESSION['mensaje_error'] = 'No se encontró al practicante.';
-            header('Location: index.php?c=practicantes');
-            exit;
-        }
-
-        $data = [
-            'titulo' => 'Perfil del Practicante',
-            'info' => $info
-        ];
-
-        $this->view('practicantes/ver', $data);
+        $this->view('practicantes/ver', ['titulo' => 'Perfil del Practicante', 'info' => $info]);
     }
 
     /**
-     * Muestra el formulario para editar los datos personales
-     * de un practicante.
+     * [NUEVO] Procesa la carga masiva desde un archivo CSV
      */
+    public function importar() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['archivo_csv'])) {
+            $file = $_FILES['archivo_csv']['tmp_name'];
+            $handle = fopen($file, "r");
+            $contador = 0;
+
+            fgetcsv($handle); // Saltar cabecera
+            while (($row = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                $datos = [
+                    'dni' => $row[0],
+                    'nombres' => $row[1],
+                    'apellidos' => $row[2],
+                    'estado' => $row[3],
+                    'escuela' => $row[4]
+                ];
+                if($this->practicanteModel->importarPracticanteSimple($datos)) $contador++;
+            }
+            fclose($handle);
+            $_SESSION['mensaje_exito'] = "Se han importado $contador registros correctamente.";
+            header('Location: index.php?c=practicantes');
+            exit;
+        }
+        $this->view('practicantes/importar', ['titulo' => 'Importación Masiva']);
+    }
+
     public function editar() {
         $id = (int)($_GET['id'] ?? 0);
-        if ($id === 0) {
-            header('Location: index.php?c=practicantes');
-            exit;
-        }
-
         $practicante = $this->practicanteModel->getPracticanteDetalle($id);
         $catalogos = $this->practicanteModel->getCatalogosParaFormulario();
-
-        if (!$practicante) {
-            $_SESSION['mensaje_error'] = 'Practicante no encontrado.';
-            header('Location: index.php?c=practicantes');
-            exit;
-        }
-
-        $data = [
-            'titulo' => 'Editar Practicante',
-            'practicante' => $practicante,
-            'universidades' => $catalogos['universidades'],
-            'escuelas' => $catalogos['escuelas'],
-            'escuelas_json' => json_encode($catalogos['escuelas'])
-        ];
-
-        $this->view('practicantes/editar', $data);
+        $this->view('practicantes/editar', ['titulo' => 'Editar Practicante', 'practicante' => $practicante, 'universidades' => $catalogos['universidades'], 'escuelas' => $catalogos['escuelas'], 'escuelas_json' => json_encode($catalogos['escuelas'])]);
     }
 
-    /**
-     * Procesa el formulario de actualización de datos personales.
-     */
     public function actualizar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $id = (int)($_POST['practicante_id'] ?? 0);
-            
-            $datosPost = [
-                'practicante_id' => $id,
-                'dni' => trim($_POST['dni']) ?? '',
-                'nombres' => trim($_POST['nombres']) ?? '',
-                'apellidos' => trim($_POST['apellidos']) ?? '',
-                'fecha_nacimiento' => trim($_POST['fecha_nacimiento']) ?? null,
-                'email' => trim($_POST['email']) ?? null,
-                'telefono' => trim($_POST['telefono']) ?? null,
-                'promedio_general' => trim($_POST['promedio_general']) ?? null,
-                'escuela_id' => (int)($_POST['escuela_id']) ?? null,
-                'estado_general' => trim($_POST['estado_general']) ?? 'Activo'
-            ];
-
-            if (empty($datosPost['dni']) || empty($datosPost['nombres']) || empty($datosPost['apellidos']) || $id === 0) {
-                $_SESSION['mensaje_error'] = 'Datos incompletos para actualizar.';
-                header('Location: index.php?c=practicantes&m=editar&id=' . $id);
-                exit;
-            }
-
-            try {
-                $this->practicanteModel->actualizarPracticante($datosPost);
-                $_SESSION['mensaje_exito'] = 'Datos del practicante actualizados.';
-            } catch (Exception $e) {
-                $_SESSION['mensaje_error'] = 'Error al actualizar: ' . $e->getMessage();
-            }
-            
-            header('Location: index.php?c=practicantes&m=ver&id=' . $id);
-            exit;
-
-        } else {
-            header('Location: index.php?c=practicantes');
+            $this->practicanteModel->actualizarPracticante($_POST);
+            $_SESSION['mensaje_exito'] = 'Datos actualizados.';
+            header('Location: index.php?c=practicantes&m=ver&id=' . $_POST['practicante_id']);
             exit;
         }
     }
