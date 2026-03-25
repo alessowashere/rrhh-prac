@@ -19,7 +19,7 @@ class DashboardController extends Controller {
         $data = [
             'titulo' => 'Panel de Control Activo',
             'kpis' => [
-                'activos'    => $practicanteModel->contarActivos(),
+                'activos'    => $practicanteModel->getPracticanteCounts()['activos'],
                 'en_proceso' => $reclutamientoModel->contarEnProceso(),
                 'criticos'   => $convenioModel->contarConveniosPorVencer(7), // Próximos 7 días
                 'por_vencer' => $convenioModel->contarConveniosPorVencer(30)
