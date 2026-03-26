@@ -222,12 +222,23 @@ class ConvenioModel extends Model {
     }
 
     public function getCandidatosAceptados() {
-        $sql = "SELECT pr.proceso_id, p.nombres, p.apellidos, pr.tipo_practica
+        // CORRECCIÓN: Se añadieron p.dni y pr.fecha_postulacion al SELECT.
+        // Además, se corrigió el JOIN con EscuelasProfesionales (usando escuela_id y ep.nombre)
+        $sql = "SELECT pr.proceso_id, 
+                       p.nombres, 
+                       p.apellidos, 
+                       p.dni, 
+                       pr.fecha_postulacion, 
+                       pr.tipo_practica, 
+                       p.practicante_id, 
+                       ep.nombre as escuela_nombre
                 FROM ProcesosReclutamiento pr
                 JOIN Practicantes p ON pr.practicante_id = p.practicante_id
+                LEFT JOIN EscuelasProfesionales ep ON p.escuela_profesional_id = ep.escuela_id
                 WHERE pr.estado_proceso = 'Aceptado'
                 AND pr.proceso_id NOT IN (SELECT proceso_id FROM Convenios)";
-        return $this->db->query($sql)->fetchAll();
+                
+        return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function getUltimosConveniosCreados($limite = 5) {
@@ -247,6 +258,183 @@ class ConvenioModel extends Model {
         $stmt->execute();
         
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+    // =========================================================================
+    // NUEVAS FUNCIONES REQUERIDAS POR EL CONVENIOS CONTROLLER
+    // =========================================================================
+
+    public function getPracticanteSimple($practicante_id) {
+        $sql = "SELECT p.practicante_id, p.dni, p.nombres, p.apellidos, 
+                       ep.nombre as escuela_nombre
+                FROM Practicantes p
+                LEFT JOIN EscuelasProfesionales ep ON p.escuela_profesional_id = ep.escuela_id
+                WHERE p.practicante_id = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$practicante_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function crearConvenioTransaccion($datosConvenio, $datosPeriodo) {
+        $this->db->beginTransaction();
+        try {
+            // 1. Crear Convenio
+            $sql = "INSERT INTO Convenios (practicante_id, proceso_id, tipo_practica, estado_convenio, estado_firma) 
+                    VALUES (?, ?, ?, ?, ?)";
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                $datosConvenio['practicante_id'], 
+                $datosConvenio['proceso_id'], 
+                $datosConvenio['tipo_practica'], 
+                $datosConvenio['estado_convenio'], 
+                $datosConvenio['estado_firma']
+            ]);
+            $convenio_id = $this->db->lastInsertId();
+
+            // 2. Crear Periodo
+            $sqlPeriodo = "INSERT INTO PeriodosConvenio (convenio_id, fecha_inicio, fecha_fin, local_id, area_id, estado_periodo) 
+                           VALUES (?, ?, ?, ?, ?, ?)";
+            $stmtPeriodo = $this->db->prepare($sqlPeriodo);
+            $stmtPeriodo->execute([
+                $convenio_id, 
+                $datosPeriodo['fecha_inicio'], 
+                $datosPeriodo['fecha_fin'], 
+                $datosPeriodo['local_id'], 
+                $datosPeriodo['area_id'], 
+                $datosPeriodo['estado_periodo']
+            ]);
+
+            // 3. Activar Practicante
+            $sqlPract = "UPDATE Practicantes SET estado_general = 'Activo' WHERE practicante_id = ?";
+            $this->db->prepare($sqlPract)->execute([$datosConvenio['practicante_id']]);
+
+            $this->db->commit();
+            return $convenio_id;
+        } catch (\PDOException $e) {
+            $this->db->rollBack();
+            throw new \Exception("Error al crear convenio: " . $e->getMessage());
+        }
+    }
+
+    public function getDetalleConvenio($convenio_id) {
+        $sql = "SELECT c.*, p.nombres, p.apellidos, p.dni, ep.nombre as escuela_nombre, pr.puntuacion_final_entrevista
+                FROM Convenios c
+                JOIN Practicantes p ON c.practicante_id = p.practicante_id
+                LEFT JOIN EscuelasProfesionales ep ON p.escuela_profesional_id = ep.escuela_id
+                LEFT JOIN ProcesosReclutamiento pr ON c.proceso_id = pr.proceso_id
+                WHERE c.convenio_id = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$convenio_id]);
+        $convenio = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($convenio) {
+            $sqlPeriodos = "SELECT pc.*, a.nombre as area_nombre, l.nombre as local_nombre 
+                            FROM PeriodosConvenio pc
+                            LEFT JOIN Areas a ON pc.area_id = a.area_id
+                            LEFT JOIN Locales l ON pc.local_id = l.local_id
+                            WHERE pc.convenio_id = ? ORDER BY pc.fecha_inicio DESC";
+            $stmtPeriodos = $this->db->prepare($sqlPeriodos);
+            $stmtPeriodos->execute([$convenio_id]);
+            $convenio['periodos'] = $stmtPeriodos->fetchAll(PDO::FETCH_ASSOC);
+            
+            $sqlAdendas = "SELECT * FROM Adendas WHERE convenio_id = ? ORDER BY fecha_adenda DESC";
+            $stmtAdendas = $this->db->prepare($sqlAdendas);
+            $stmtAdendas->execute([$convenio_id]);
+            $convenio['adendas'] = $stmtAdendas->fetchAll(PDO::FETCH_ASSOC);
+        }
+        return $convenio;
+    }
+
+    public function actualizarConvenioFirmado($convenio_id, $url_relativa) {
+        // Asumiendo que existe una columna para el documento, si no existe solo actualizará la firma.
+        try {
+            $sql = "UPDATE Convenios SET estado_firma = 'Firmado' WHERE convenio_id = ?";
+            $stmt = $this->db->prepare($sql);
+            return $stmt->execute([$convenio_id]);
+        } catch (\PDOException $e) {
+            return false;
+        }
+    }
+
+    public function ampliarConvenio($datosAdenda, $nueva_fecha_fin) {
+        $this->db->beginTransaction();
+        try {
+            $sqlAdenda = "INSERT INTO Adendas (convenio_id, tipo_accion, fecha_adenda, descripcion) VALUES (?, ?, ?, ?)";
+            $stmt = $this->db->prepare($sqlAdenda);
+            $stmt->execute([$datosAdenda['convenio_id'], $datosAdenda['tipo_accion'], $datosAdenda['fecha_adenda'], $datosAdenda['descripcion']]);
+            
+            $sqlUpdate = "UPDATE PeriodosConvenio SET fecha_fin = ? WHERE convenio_id = ? AND estado_periodo = 'Activo'";
+            $stmtUpdate = $this->db->prepare($sqlUpdate);
+            $stmtUpdate->execute([$nueva_fecha_fin, $datosAdenda['convenio_id']]);
+
+            $this->db->commit();
+            return true;
+        } catch (\PDOException $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    public function agregarNuevoPeriodo($datosPeriodo, $datosAdenda) {
+        $this->db->beginTransaction();
+        try {
+            $sqlClose = "UPDATE PeriodosConvenio SET estado_periodo = 'Finalizado' WHERE convenio_id = ? AND estado_periodo = 'Activo'";
+            $this->db->prepare($sqlClose)->execute([$datosPeriodo['convenio_id']]);
+
+            $sqlAdenda = "INSERT INTO Adendas (convenio_id, tipo_accion, fecha_adenda, descripcion) VALUES (?, ?, ?, ?)";
+            $this->db->prepare($sqlAdenda)->execute([$datosAdenda['convenio_id'], $datosAdenda['tipo_accion'], $datosAdenda['fecha_adenda'], $datosAdenda['descripcion']]);
+
+            $sqlPeriodo = "INSERT INTO PeriodosConvenio (convenio_id, fecha_inicio, fecha_fin, local_id, area_id, estado_periodo) VALUES (?, ?, ?, ?, ?, ?)";
+            $this->db->prepare($sqlPeriodo)->execute([$datosPeriodo['convenio_id'], $datosPeriodo['fecha_inicio'], $datosPeriodo['fecha_fin'], $datosPeriodo['local_id'], $datosPeriodo['area_id'], $datosPeriodo['estado_periodo']]);
+
+            $this->db->commit();
+            return true;
+        } catch (\PDOException $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    public function finalizarConvenio($convenio_id, $practicante_id, $nuevo_estado, $descripcion, $url_relativa) {
+        $this->db->beginTransaction();
+        try {
+            $sql = "UPDATE Convenios SET estado_convenio = 'Finalizado' WHERE convenio_id = ?";
+            $this->db->prepare($sql)->execute([$convenio_id]);
+
+            $sqlPer = "UPDATE PeriodosConvenio SET estado_periodo = 'Finalizado' WHERE convenio_id = ?";
+            $this->db->prepare($sqlPer)->execute([$convenio_id]);
+
+            $sqlPrac = "UPDATE Practicantes SET estado_general = 'Cesado' WHERE practicante_id = ?";
+            $this->db->prepare($sqlPrac)->execute([$practicante_id]);
+
+            $sqlAdenda = "INSERT INTO Adendas (convenio_id, tipo_accion, fecha_adenda, descripcion) VALUES (?, ?, CURDATE(), ?)";
+            $this->db->prepare($sqlAdenda)->execute([$convenio_id, 'CESE_' . strtoupper($nuevo_estado), $descripcion]);
+
+            $this->db->commit();
+            return true;
+        } catch (\PDOException $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    public function registrarSuspension($datosNuevoPeriodo, $datosAdenda, $fecha_suspension) {
+        $this->db->beginTransaction();
+        try {
+            $sqlClose = "UPDATE PeriodosConvenio SET fecha_fin = ?, estado_periodo = 'Finalizado' WHERE convenio_id = ? AND estado_periodo = 'Activo'";
+            $this->db->prepare($sqlClose)->execute([$fecha_suspension, $datosNuevoPeriodo['convenio_id']]);
+
+            $sqlAdenda = "INSERT INTO Adendas (convenio_id, tipo_accion, fecha_adenda, descripcion) VALUES (?, ?, ?, ?)";
+            $this->db->prepare($sqlAdenda)->execute([$datosAdenda['convenio_id'], $datosAdenda['tipo_accion'], $datosAdenda['fecha_adenda'], $datosAdenda['descripcion']]);
+
+            $sqlPeriodo = "INSERT INTO PeriodosConvenio (convenio_id, fecha_inicio, fecha_fin, local_id, area_id, estado_periodo) VALUES (?, ?, ?, ?, ?, ?)";
+            $this->db->prepare($sqlPeriodo)->execute([$datosNuevoPeriodo['convenio_id'], $datosNuevoPeriodo['fecha_inicio'], $datosNuevoPeriodo['fecha_fin'], $datosNuevoPeriodo['local_id'], $datosNuevoPeriodo['area_id'], $datosNuevoPeriodo['estado_periodo']]);
+
+            $this->db->commit();
+            return true;
+        } catch (\PDOException $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 }
 ?>
