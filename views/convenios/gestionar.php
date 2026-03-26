@@ -25,7 +25,7 @@ if (!empty($periodos)) {
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2"><?php echo htmlspecialchars($data['titulo']); ?></h1>
+    <h1 class="h2"><?php echo htmlspecialchars($data['titulo'] ?? ''); ?></h1>
     <div class="btn-toolbar mb-2 mb-md-0">
         <a href="index.php?c=practicantes&m=ver&id=<?php echo $c['practicante_id']; ?>" class="btn btn-sm btn-outline-primary me-2" title="Ver Perfil Completo">
             <i class="bi bi-person-fill"></i> Ver Perfil
@@ -53,8 +53,8 @@ if (isset($_SESSION['mensaje_error'])) {
         <div class="card mb-4 shadow-sm">
             <div class="card-header"><i class="bi bi-person-badge"></i> Practicante</div>
             <div class="card-body">
-                <p class="mb-1"><strong>DNI:</strong> <?php echo htmlspecialchars($c['dni']); ?></p>
-                <p class="mb-0"><strong>Nombres:</strong> <?php echo htmlspecialchars($c['apellidos'] . ', ' . $c['nombres']); ?></p>
+                <p class="mb-1"><strong>DNI:</strong> <?php echo htmlspecialchars($c['dni'] ?? ''); ?></p>
+                <p class="mb-0"><strong>Nombres:</strong> <?php echo htmlspecialchars(($c['apellidos'] ?? '') . ', ' . ($c['nombres'] ?? '')); ?></p>
             </div>
         </div>
     </div>
@@ -62,7 +62,7 @@ if (isset($_SESSION['mensaje_error'])) {
         <div class="card mb-4 shadow-sm">
             <div class="card-header"><i class="bi bi-file-earmark-text"></i> Convenio</div>
             <div class="card-body">
-                <p class="mb-1"><strong>Tipo:</strong> <?php echo htmlspecialchars($c['tipo_practica']); ?></p>
+                <p class="mb-1"><strong>Tipo:</strong> <?php echo htmlspecialchars($c['tipo_practica'] ?? ''); ?></p>
                 <p class="mb-1"><strong>Inicio (Original):</strong> <?php echo $fecha_inicio_real; ?></p>
                 <p class="mb-1"><strong>Fin (Vigente):</strong> <?php echo $fecha_fin_real; ?></p>
                 <p class="mb-1"><strong>Adendas:</strong> 
@@ -70,7 +70,7 @@ if (isset($_SESSION['mensaje_error'])) {
                 </p>
                 <p class="mb-0"><strong>Estado:</strong> 
                     <span class="badge <?php echo $esVigente ? 'bg-success' : 'bg-secondary'; ?>">
-                        <?php echo htmlspecialchars($c['estado_convenio']); ?>
+                        <?php echo htmlspecialchars($c['estado_convenio'] ?? ''); ?>
                     </span>
                 </p>
             </div>
@@ -179,24 +179,21 @@ if (isset($_SESSION['mensaje_error'])) {
                             <?php foreach ($c['adendas'] as $a): ?>
                             <tr>
                                 <td>
-                                    <i class="bi bi-journal-plus text-secondary"></i> <strong>Adenda: <?php echo htmlspecialchars($a['tipo_accion']); ?></strong>
+                                    <i class="bi bi-journal-plus text-secondary"></i> <strong>Adenda: <?php echo htmlspecialchars($a['tipo_accion'] ?? ''); ?></strong>
                                 </td>
                                 <td>
                                    <small class="text-muted"><?php echo date("d/m/Y", strtotime($a['fecha_adenda'])); ?></small>
                                 </td>
                                 <td>
                                     <?php if (!empty($a['documento_adenda_url'])): ?>
-                                        <a href="<?php echo htmlspecialchars($a['documento_adenda_url']); ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                        <a href="<?php echo htmlspecialchars($a['documento_adenda_url'] ?? ''); ?>" target="_blank" class="btn btn-sm btn-outline-secondary">
                                             <i class="bi bi-eye-fill"></i> Ver Sustento
                                         </a>
-                                        <button class="btn btn-sm btn-outline-success" disabled title="Subir Adenda Firmada (requiere desarrollo)">
-                                            <i class="bi bi-upload"></i> Subir Firmada
-                                        </button>
                                     <?php else: ?>
                                         <span class="text-muted fst-italic small">(Sin documento adjunto)</span>
                                     <?php endif; ?>
                                      <?php if (!empty($a['descripcion'])): ?>
-                                        <p class="small text-muted mb-0 mt-1" title="Descripción/Justificación"><em><?php echo htmlspecialchars($a['descripcion']); ?></em></p>
+                                        <p class="small text-muted mb-0 mt-1" title="Descripción/Justificación"><em><?php echo htmlspecialchars($a['descripcion'] ?? ''); ?></em></p>
                                     <?php endif; ?>
                                 </td>
                             </tr>
@@ -297,7 +294,7 @@ if (isset($_SESSION['mensaje_error'])) {
                                     <select name="local_id" class="form-select form-select-sm" required>
                                         <option value="">Seleccione...</option>
                                         <?php foreach($data['locales'] as $loc): ?>
-                                        <option value="<?php echo $loc['local_id']; ?>" <?php echo ($periodo_activo && $loc['local_id'] == $periodo_activo['local_id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($loc['nombre']); ?></option>
+                                        <option value="<?php echo $loc['local_id']; ?>" <?php echo ($periodo_activo && $loc['local_id'] == $periodo_activo['local_id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($loc['nombre'] ?? ''); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                      <div class="invalid-feedback">Seleccione el nuevo local.</div>
@@ -307,7 +304,7 @@ if (isset($_SESSION['mensaje_error'])) {
                                     <select name="area_id" class="form-select form-select-sm" required>
                                         <option value="">Seleccione...</option>
                                          <?php foreach($data['areas'] as $area): ?>
-                                        <option value="<?php echo $area['area_id']; ?>" <?php echo ($periodo_activo && $area['area_id'] == $periodo_activo['area_id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($area['nombre']); ?></option>
+                                        <option value="<?php echo $area['area_id']; ?>" <?php echo ($periodo_activo && $area['area_id'] == $periodo_activo['area_id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($area['nombre'] ?? ''); ?></option>
                                         <?php endforeach; ?>
                                     </select>
                                     <div class="invalid-feedback">Seleccione la nueva área.</div>
@@ -360,7 +357,7 @@ if (isset($_SESSION['mensaje_error'])) {
                                 </div>
                                 <div class="col-md-12">
                                     <label class="form-label">Nueva Fecha Fin del Convenio (Ajustada) <span class="text-danger">*</span></label>
-                                    <input type="date" name="nueva_fecha_fin" class="form-control form-control-sm" id="corte_nueva_fecha_fin" value="<?php echo $fecha_fin_actual; // Por defecto, mantiene la fecha fin original ?>" required>
+                                    <input type="date" name="nueva_fecha_fin" class="form-control form-control-sm" id="corte_nueva_fecha_fin" value="<?php echo $fecha_fin_actual; ?>" required>
                                     <small class="text-muted">Debe ser la nueva fecha final total del convenio, considerando los días de suspensión.</small>
                                     <div class="invalid-feedback">Ingrese la nueva fecha final del convenio.</div>
                                 </div>
@@ -421,7 +418,13 @@ if (isset($_SESSION['mensaje_error'])) {
                         </form>
                     </div>
                     
-                </div> </div> </div> </div> </div> <script>
+                </div> 
+            </div> 
+        </div> 
+    </div> 
+</div> 
+
+<script>
 document.addEventListener('DOMContentLoaded', function() {
 
     // --- LÓGICA DEL SELECTOR DE ACCIONES ---
@@ -429,7 +432,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const formularios = document.querySelectorAll('.accion-form');
     const campoDocRenuncia = document.getElementById('campo_doc_renuncia');
     const inputDocRenuncia = campoDocRenuncia ? campoDocRenuncia.querySelector('input[name="documento_renuncia"]') : null;
-    const selectMotivoCese = document.getElementById('motivo_cese'); // Selector dentro del form de cese
+    const selectMotivoCese = document.getElementById('motivo_cese');
 
     function gestionarFormularios() {
         if (!selector) return;
@@ -439,7 +442,6 @@ document.addEventListener('DOMContentLoaded', function() {
             form.style.display = (form.id === 'form-' + valorSeleccionado) ? 'block' : 'none';
         });
 
-        // Lógica específica para el campo de renuncia en el form de cese
         if (valorSeleccionado === 'cese') {
             const motivoCese = selectMotivoCese ? selectMotivoCese.value : '';
             if (motivoCese === 'Renuncia') {
@@ -448,64 +450,41 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                  if(campoDocRenuncia) campoDocRenuncia.style.display = 'none';
                  if(inputDocRenuncia) inputDocRenuncia.required = false;
-                 if(inputDocRenuncia) inputDocRenuncia.value = ''; // Limpiar si se cambia a "Cancelado"
+                 if(inputDocRenuncia) inputDocRenuncia.value = ''; 
             }
         } else {
-            // Asegurarse que esté oculto y no requerido si no estamos en 'cese'
             if(campoDocRenuncia) campoDocRenuncia.style.display = 'none';
             if(inputDocRenuncia) inputDocRenuncia.required = false;
         }
     }
 
-    if (selector) {
-        selector.addEventListener('change', gestionarFormularios);
-    }
-    if (selectMotivoCese) {
-        // También necesita actualizar la visibilidad cuando cambia el motivo DENTRO del form de cese
-        selectMotivoCese.addEventListener('change', gestionarFormularios);
-    }
-    
-    // Ejecutar al inicio por si hay algún valor preseleccionado (menos común)
-    // gestionarFormularios();
-
+    if (selector) selector.addEventListener('change', gestionarFormularios);
+    if (selectMotivoCese) selectMotivoCese.addEventListener('change', gestionarFormularios);
 
     // --- LÓGICA DE CÁLCULO DE FECHA ---
     function calcularFechaFin(fechaInicioStr, meses) {
         let fechaInicio;
         if (!fechaInicioStr) {
-            // Si no hay fecha de inicio (ej. calculando desde fin actual), usar la fecha actual como base
             fechaInicio = new Date(); 
         } else {
             const partes = fechaInicioStr.split('-'); 
-            // OJO: Meses en JS son 0-11
             fechaInicio = new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10));
         }
         
         const fechaFin = new Date(fechaInicio.getTime());
         fechaFin.setMonth(fechaFin.getMonth() + parseInt(meses, 10));
-        // Restar un día para que sea inclusivo (ej. 10 Ene + 1 Mes = 9 Feb)
         fechaFin.setDate(fechaFin.getDate() - 1); 
-        
-        return fechaFin.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+        return fechaFin.toISOString().split('T')[0]; 
     }
 
-    // --- LÓGICA DE CÁLCULO DE FECHA (PARA AMPLIACIÓN) ---
     function calcularFechaFinAmpliacion(fechaBaseStr, meses) {
          if (!fechaBaseStr) return '';
          const partes = fechaBaseStr.split('-'); 
-         // Fecha base (que es la FECHA FIN ACTUAL)
          const fechaBase = new Date(parseInt(partes[0], 10), parseInt(partes[1], 10) - 1, parseInt(partes[2], 10));
-         
-         // 1. Añadir un día para empezar a contar desde el día SIGUIENTE al fin
          fechaBase.setDate(fechaBase.getDate() + 1);
-         
-         // 2. Añadir los meses
          const fechaFin = new Date(fechaBase.getTime());
          fechaFin.setMonth(fechaFin.getMonth() + parseInt(meses, 10));
-         
-         // 3. Restar un día
          fechaFin.setDate(fechaFin.getDate() - 1);
-         
          return fechaFin.toISOString().split('T')[0];
     }
     
@@ -523,7 +502,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (inputFechaInicio && inputFechaFin) {
                 let fechaInicioBase = inputFechaInicio.value;
                 
-                // Si el campo de inicio está vacío, rellenarlo con hoy
                 if (!fechaInicioBase && !(inputFechaInicio.readOnly || inputFechaInicio.disabled)) {
                     fechaInicioBase = new Date().toISOString().split('T')[0];
                     inputFechaInicio.value = fechaInicioBase;
@@ -531,16 +509,11 @@ document.addEventListener('DOMContentLoaded', function() {
                      fechaInicioBase = new Date().toISOString().split('T')[0];
                 }
 
-                // *** DISTINGUIR LÓGICA DE CÁLCULO ***
                 if (idInicio === 'ampl_fecha_fin_actual') {
-                    // Es una ampliación, usamos la lógica de sumar a la fecha fin
                     inputFechaFin.value = calcularFechaFinAmpliacion(fechaInicioBase, meses);
                 } else {
-                    // Es un período nuevo, usamos la lógica de inicio + meses
                     inputFechaFin.value = calcularFechaFin(fechaInicioBase, meses);
                 }
-                
-                 // Disparar evento change para compatibilidad con validaciones
                  inputFechaFin.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
@@ -553,9 +526,7 @@ document.addEventListener('DOMContentLoaded', function() {
       Array.prototype.slice.call(forms)
         .forEach(function (form) {
           form.addEventListener('submit', function (event) {
-            
-            // Re-validar la visibilidad del campo de renuncia ANTES de enviar
-            if (selector.value === 'cese') {
+            if (selector && selector.value === 'cese') {
                  const motivoCese = selectMotivoCese ? selectMotivoCese.value : '';
                  if (motivoCese === 'Renuncia') {
                     if(inputDocRenuncia) inputDocRenuncia.required = true;
