@@ -78,7 +78,7 @@ if (isset($_SESSION['mensaje_error'])) {
 
                 <div class="col-sm-4">
                     <label for="promedio_general" class="form-label">Promedio General</label>
-                    <input type="number" class="form-control" id="promedio_general" name="promedio_general" step="0.01" min="0" max="20" value="<?php echo htmlspecialchars($p['promedio_general']); ?>">
+                    <input type="number" class="form-control" id="promedio_general" name="promedio_general" step="0.001" min="0" max="20" value="<?php echo htmlspecialchars($p['promedio_general']); ?>">
                 </div>
                 
                 <div class="col-sm-4">
