@@ -25,14 +25,21 @@ class ConvenioModel extends Model {
      * Soluciona el Error Fatal de la línea 22
      */
     public function getConveniosVigentes() {
+        // CORRECCIÓN: Se añadieron los alias exactos (fecha_inicio_actual, fecha_fin_actual)
+        // que la vista necesita para imprimir las fechas correctamente.
         $sql = "SELECT c.*, p.nombres, p.apellidos, p.dni, 
-                       (SELECT a.nombre FROM PeriodosConvenio pc JOIN Areas a ON pc.area_id = a.area_id WHERE pc.convenio_id = c.convenio_id AND pc.estado_periodo = 'Activo' LIMIT 1) as area_actual,
-                       (SELECT fecha_fin FROM PeriodosConvenio WHERE convenio_id = c.convenio_id ORDER BY fecha_fin DESC LIMIT 1) as fecha_termino
+                       a.nombre as area_actual,
+                       pc.fecha_inicio as fecha_inicio_actual,
+                       pc.fecha_fin as fecha_fin_actual,
+                       (SELECT COUNT(*) FROM Adendas ad WHERE ad.convenio_id = c.convenio_id) as num_adendas
                 FROM Convenios c
                 JOIN Practicantes p ON c.practicante_id = p.practicante_id
+                LEFT JOIN PeriodosConvenio pc ON c.convenio_id = pc.convenio_id AND pc.estado_periodo = 'Activo'
+                LEFT JOIN Areas a ON pc.area_id = a.area_id
                 WHERE c.estado_convenio = 'Vigente'
                 ORDER BY c.convenio_id DESC";
-        return $this->db->query($sql)->fetchAll();
+                
+        return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
@@ -199,7 +206,8 @@ class ConvenioModel extends Model {
     }
 
     public function getConveniosPorVencer($dias) {
-        $sql = "SELECT p.nombres, p.apellidos, pc.fecha_fin, a.nombre as area 
+        // CORRECCIÓN: Se agregó "c.convenio_id" a la consulta para que el botón de Gestionar funcione.
+        $sql = "SELECT c.convenio_id, p.nombres, p.apellidos, pc.fecha_fin, a.nombre as area 
                 FROM PeriodosConvenio pc
                 JOIN Convenios c ON pc.convenio_id = c.convenio_id
                 JOIN Practicantes p ON c.practicante_id = p.practicante_id
@@ -207,9 +215,10 @@ class ConvenioModel extends Model {
                 WHERE pc.estado_periodo = 'Activo' 
                 AND pc.fecha_fin BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL ? DAY)
                 ORDER BY pc.fecha_fin ASC";
+                
         $stmt = $this->db->prepare($sql);
         $stmt->execute([$dias]);
-        return $stmt->fetchAll();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function getCandidatosAceptados() {
@@ -222,13 +231,22 @@ class ConvenioModel extends Model {
     }
 
     public function getUltimosConveniosCreados($limite = 5) {
-        $sql = "SELECT c.convenio_id, p.nombres, p.apellidos, c.tipo_practica, c.estado_convenio 
+        // CORRECCIÓN: Se agregó el LEFT JOIN con PeriodosConvenio y Areas
+        // para poder extraer "a.nombre as area_nombre" que necesita el Dashboard.
+        $sql = "SELECT c.convenio_id, p.nombres, p.apellidos, c.tipo_practica, c.estado_convenio,
+                       a.nombre as area_nombre
                 FROM Convenios c
                 JOIN Practicantes p ON c.practicante_id = p.practicante_id
+                LEFT JOIN PeriodosConvenio pc ON c.convenio_id = pc.convenio_id AND pc.estado_periodo = 'Activo'
+                LEFT JOIN Areas a ON pc.area_id = a.area_id
                 ORDER BY c.convenio_id DESC LIMIT ?";
+                
         $stmt = $this->db->prepare($sql);
-        $stmt->execute([$limite]);
-        return $stmt->fetchAll();
+        // Usamos bindValue para asegurarnos de que el límite pase como entero (necesario en PDO)
+        $stmt->bindValue(1, (int)$limite, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
 ?>

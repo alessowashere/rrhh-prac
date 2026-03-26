@@ -7,7 +7,6 @@
 </div>
 
 <?php 
-// Mensajes
 if (isset($_SESSION['mensaje_exito'])) {
     echo '<div class="alert alert-success alert-dismissible fade show" role="alert">' . $_SESSION['mensaje_exito'] . '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
     unset($_SESSION['mensaje_exito']);
@@ -38,7 +37,6 @@ if (isset($_SESSION['mensaje_error'])) {
     
     <div class="card-body">
         <div class="tab-content" id="convenioTabsContent">
-            
             <div class="tab-pane fade show active" id="pendientes" role="tabpanel">
                 <h5 class="mb-3">Candidatos Aceptados (Esperando Convenio)</h5>
                 <div class="table-responsive">
@@ -63,7 +61,7 @@ if (isset($_SESSION['mensaje_error'])) {
                                     <td><?php echo htmlspecialchars($p['escuela_nombre']); ?></td>
                                     <td><?php echo date("d/m/Y", strtotime($p['fecha_postulacion'])); ?></td>
                                     <td class="text-center">
-                                        <a href="index.php?c=convenios&m=crear&proceso_id=<?php echo $p['proceso_id']; ?>&practicante_id=<?php echo $p['practicante_id']; ?>" class="btn btn-sm btn-primary" title="Iniciar creación de convenio">
+                                        <a href="index.php?c=convenios&m=crear&proceso_id=<?php echo $p['proceso_id']; ?>&practicante_id=<?php echo $p['practicante_id']; ?>" class="btn btn-sm btn-primary">
                                             <i class="bi bi-plus-circle"></i> Crear Convenio
                                         </a>
                                     </td>
@@ -104,25 +102,28 @@ if (isset($_SESSION['mensaje_error'])) {
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($data['vigentes'] as $c): 
-                                    $fecha_inicio_val = ($c['fecha_inicio_actual'] != 'N/A') ? date("d/m/Y", strtotime($c['fecha_inicio_actual'])) : 'N/A';
-                                    $fecha_fin_val = ($c['fecha_fin_actual'] != 'N/A') ? date("d/m/Y", strtotime($c['fecha_fin_actual'])) : 'N/A';
+                                    $f_inicio = $c['fecha_inicio_actual'] ?? null;
+                                    $f_fin = $c['fecha_fin_actual'] ?? null;
+
+                                    $fecha_inicio_val = ($f_inicio && $f_inicio !== 'N/A') ? date("d/m/Y", strtotime($f_inicio)) : 'N/A';
+                                    $fecha_fin_val = ($f_fin && $f_fin !== 'N/A') ? date("d/m/Y", strtotime($f_fin)) : 'N/A';
                                 ?>
                                 <tr>
                                     <td class="text-center">
-                                        <?php if ($c['estado_firma'] == 'Firmado'): ?>
-                                            <span class="badge bg-success" title="Convenio Principal Firmado"><i class="bi bi-check-circle-fill"></i></span>
+                                        <?php if (($c['estado_firma'] ?? '') == 'Firmado'): ?>
+                                            <span class="badge bg-success"><i class="bi bi-check-circle-fill"></i></span>
                                         <?php else: ?>
-                                            <span class="badge bg-danger" title="Convenio Principal Pendiente de Firma"><i class="bi bi-clock-fill"></i></span>
+                                            <span class="badge bg-danger"><i class="bi bi-clock-fill"></i></span>
                                         <?php endif; ?>
                                     </td>
                                     <td><?php echo htmlspecialchars($c['apellidos'] . ', ' . $c['nombres']); ?></td>
-                                    <td><span class="badge bg-info text-dark"><?php echo htmlspecialchars($c['tipo_practica']); ?></span></td>
-                                    <td><?php echo htmlspecialchars($c['area_actual']); ?></td>
+                                    <td><span class="badge bg-info text-dark"><?php echo htmlspecialchars($c['tipo_practica'] ?? 'N/A'); ?></span></td>
+                                    <td><?php echo htmlspecialchars($c['area_actual'] ?? 'No asignada'); ?></td>
                                     <td><?php echo $fecha_inicio_val; ?></td>
                                     <td><?php echo $fecha_fin_val; ?></td>
                                     <td class="text-center">
-                                        <?php if ($c['num_adendas'] > 0): ?>
-                                            <span class="badge bg-warning text-dark" title="<?php echo $c['num_adendas']; ?> adenda(s) registrada(s)">
+                                        <?php if (isset($c['num_adendas']) && $c['num_adendas'] > 0): ?>
+                                            <span class="badge bg-warning text-dark">
                                                 <i class="bi bi-journal-plus"></i> <?php echo $c['num_adendas']; ?>
                                             </span>
                                         <?php else: ?>
@@ -130,11 +131,11 @@ if (isset($_SESSION['mensaje_error'])) {
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-center">
-                                         <div class="btn-group btn-group-sm" role="group">
-                                            <a href="index.php?c=convenios&m=gestionar&id=<?php echo $c['convenio_id']; ?>" class="btn btn-outline-success" title="Gestionar Convenio (Adendas, Firmas)">
+                                         <div class="btn-group btn-group-sm">
+                                            <a href="index.php?c=convenios&m=gestionar&id=<?php echo $c['convenio_id']; ?>" class="btn btn-outline-success">
                                                 <i class="bi bi-pencil-square"></i>
                                             </a>
-                                            <a href="index.php?c=practicantes&m=ver&id=<?php echo $c['practicante_id']; ?>" class="btn btn-outline-secondary" title="Ver Perfil Completo del Practicante">
+                                            <a href="index.php?c=practicantes&m=ver&id=<?php echo $c['practicante_id']; ?>" class="btn btn-outline-secondary">
                                                 <i class="bi bi-person-fill"></i>
                                             </a>
                                         </div>
@@ -142,9 +143,6 @@ if (isset($_SESSION['mensaje_error'])) {
                                 </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>
-                             <tr id="fila-no-coincidencias" style="display: none;">
-                                <td colspan="8" class="text-center text-muted fst-italic py-3">No se encontraron convenios que coincidan con el filtro.</td>
-                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -152,52 +150,3 @@ if (isset($_SESSION['mensaje_error'])) {
         </div>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const buscador = document.getElementById('buscador-vigentes');
-    const tabla = document.getElementById('tabla-vigentes');
-    const filas = tabla ? tabla.getElementsByTagName('tr') : [];
-    const filaNoCoincidencias = document.getElementById('fila-no-coincidencias');
-    const filaNoDatos = document.getElementById('fila-no-vigentes');
-
-    function filtrarTablaVigentes() {
-        if (!buscador || !tabla) return; // Salir si no existen los elementos
-
-        let textoBusqueda = buscador.value.toLowerCase().trim();
-        let filasVisibles = 0;
-
-        for (let fila of filas) {
-            // Ignorar las filas de mensajes
-            if (fila.id === 'fila-no-coincidencias' || fila.id === 'fila-no-vigentes') continue;
-
-            let textoFila = fila.innerText.toLowerCase();
-            let mostrarFila = textoBusqueda === '' || textoFila.includes(textoBusqueda);
-            
-            fila.style.display = mostrarFila ? "" : "none";
-            if (mostrarFila) {
-                filasVisibles++;
-            }
-        }
-        
-        // Gestionar visibilidad de mensajes
-        const hayDatosOriginales = filaNoDatos ? filaNoDatos.style.display === 'none' : filas.length > 1; // >1 para excluir fila de no coincidencias
-
-        if (filaNoCoincidencias) {
-            filaNoCoincidencias.style.display = (filasVisibles === 0 && textoBusqueda !== '' && hayDatosOriginales) ? "" : "none";
-        }
-        if (filaNoDatos) {
-             // Mostrar "No hay datos" solo si originalmente no había y no se está buscando
-             filaNoDatos.style.display = (filasVisibles === 0 && textoBusqueda === '' && !hayDatosOriginales) ? "" : "none";
-        }
-    }
-
-    // Evento para el buscador
-    if(buscador) {
-        buscador.addEventListener('input', filtrarTablaVigentes); // Usar 'input' para respuesta inmediata
-    }
-    
-    // Ejecutar filtro al inicio por si hay texto pre-cargado (menos común)
-    // filtrarTablaVigentes(); 
-});
-</script>

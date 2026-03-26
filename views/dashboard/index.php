@@ -151,7 +151,10 @@
                             <div class="d-flex w-100 justify-content-between">
                                 <h6 class="mb-1 fw-bold"><?php echo htmlspecialchars($u['apellidos'] . ', ' . $u['nombres']); ?></h6>
                             </div>
-                            <small class="text-muted"><?php echo htmlspecialchars($u['tipo_practica']); ?> - <?php echo htmlspecialchars($u['area_nombre']); ?></small>
+                            <small class="text-muted">
+                                <?php echo htmlspecialchars($u['tipo_practica'] ?? 'N/A'); ?> - 
+                                <?php echo htmlspecialchars($u['area_nombre'] ?? 'Área no asignada'); ?>
+                            </small>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
