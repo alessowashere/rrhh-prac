@@ -1,42 +1,53 @@
 <?php
-// core/Controller.php - Controlador base del que heredarán todos
+// core/Controller.php - Controlador base optimizado
 
 class Controller {
     
-    // Cargar un modelo
+    // Cargar un modelo de forma segura
     public function model($model) {
-        // Usamos __DIR__ para una ruta más segura
-        $modelFile = __DIR__ . '/../models/' . $model . '.php';
+        // Saneamiento para evitar inclusión de archivos maliciosos
+        $model = preg_replace('/[^a-zA-Z0-9_]/', '', $model);
+        $modelFile = BASE_PATH . 'models/' . $model . '.php';
+        
         if (file_exists($modelFile)) {
+            require_once BASE_PATH . 'core/Model.php'; // Aseguramos que el core exista
             require_once $modelFile;
-            return new $model();
-        } else {
-            die("Error: Modelo '$model' no encontrado en '$modelFile'.");
+            
+            if (class_exists($model)) {
+                return new $model();
+            }
         }
+        die("Error Crítico: No se pudo encontrar o instanciar el modelo '$model'.");
     }
 
-    // Cargar una vista (dentro de la plantilla)
-    public function view($view, $data = []) {
-        // Esta es la ruta al *contenido* (ej: views/dashboard/index.php)
-        $viewFile = __DIR__ . '/../views/' . $view . '.php';
+    // Cargar una vista (Ahora soporta layouts dinámicos)
+    // Por defecto usa 'dashboard', pero puedes pasar 'null' u otro layout
+    public function view($view, $data = [], $layout = 'dashboard') {
+        
+        // Extrae el array asociativo a variables individuales ($data['nombre'] -> $nombre)
+        if (!empty($data)) {
+            extract($data);
+        }
+
+        $viewFile = BASE_PATH . 'views/' . $view . '.php';
         
         if (file_exists($viewFile)) {
-            // $data estará disponible dentro de la vista
             
-            // --- ¡CORRECCIÓN AQUÍ! ---
-            // Esta es la ruta a la *plantilla* (el HTML principal con el menú)
-            // Tu archivo de plantilla se llama 'dashboard.php', no 'template.php'
-            $templateFile = __DIR__ . '/../views/dashboard.php'; 
-            
-            if (file_exists($templateFile)) {
-                 require_once $templateFile; // Carga la plantilla principal
+            if ($layout === null) {
+                // Si layout es null, carga SOLO la vista (ideal para AJAX, Modales o PDFs)
+                require_once $viewFile;
             } else {
-                die("Error: El archivo de plantilla 'views/dashboard.php' no se encuentra en " . $templateFile);
+                // Carga la plantilla principal, asumiendo que dentro de ella se imprime $viewFile
+                $templateFile = BASE_PATH . 'views/' . $layout . '.php'; 
+                if (file_exists($templateFile)) {
+                    require_once $templateFile;
+                } else {
+                    die("Error: Layout de diseño '$layout' no encontrado en '$templateFile'.");
+                }
             }
-            // --- FIN DE CORRECCIÓN ---
-
+            
         } else {
-            die("Error: Vista de contenido '$view' no encontrada en '$viewFile'.");
+            die("Error: Vista de contenido '$view' no encontrada.");
         }
     }
 }
