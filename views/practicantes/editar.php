@@ -45,7 +45,8 @@ if (isset($_SESSION['mensaje_error'])) {
                 </div>
                 <div class="col-sm-4">
                     <label for="email" class="form-label">Email</label>
-                    <input type="email" class="form-control" id="email" name="email" value="<?php echo htmlspecialchars($p['email']); ?>">
+                    <input type="email" class="form-control" id="email" name="email" 
+                        value="<?php echo htmlspecialchars($data['practicante']['email'] ?? ''); ?>">
                 </div>
                 <div class="col-sm-4">
                     <label for="telefono" class="form-label">Teléfono</label>

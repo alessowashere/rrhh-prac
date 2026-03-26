@@ -345,12 +345,16 @@ class ConvenioModel extends Model {
     }
 
     public function actualizarConvenioFirmado($convenio_id, $url_relativa) {
-        // Asumiendo que existe una columna para el documento, si no existe solo actualizará la firma.
         try {
-            $sql = "UPDATE Convenios SET estado_firma = 'Firmado' WHERE convenio_id = ?";
+            // Asegúrate de que la columna se llame 'documento_convenio_url' en tu tabla Convenios
+            $sql = "UPDATE Convenios 
+                    SET estado_firma = 'Firmado', 
+                        documento_convenio_url = ? 
+                    WHERE convenio_id = ?";
             $stmt = $this->db->prepare($sql);
-            return $stmt->execute([$convenio_id]);
+            return $stmt->execute([$url_relativa, $convenio_id]);
         } catch (\PDOException $e) {
+            error_log("Error en actualizarConvenioFirmado: " . $e->getMessage());
             return false;
         }
     }

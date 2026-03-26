@@ -53,9 +53,27 @@ class PracticanteModel extends Model {
         return $info;
     }
 
-    public function actualizarPracticante(array $data) {
-        $sql = "UPDATE Practicantes SET dni = ?, nombres = ?, apellidos = ?, fecha_nacimiento = ?, email = ?, telefono = ?, promedio_general = ?, escuela_profesional_id = ?, estado_general = ? WHERE practicante_id = ?";
-        return $this->db->prepare($sql)->execute([$data['dni'], $data['nombres'], $data['apellidos'], $data['fecha_nacimiento'], $data['email'], $data['telefono'], $data['promedio_general'], $data['escuela_id'], $data['estado_general'], $data['practicante_id']]);
+    public function actualizarPracticante($data) {
+        // CORRECCIÓN: Manejo de fecha vacía para evitar el error 22007 de MySQL
+        $fecha_nac = !empty($data['fecha_nacimiento']) ? $data['fecha_nacimiento'] : null;
+
+        $sql = "UPDATE Practicantes 
+                SET nombres = ?, apellidos = ?, dni = ?, fecha_nacimiento = ?, 
+                    email = ?, telefono = ?, escuela_profesional_id = ?
+                WHERE practicante_id = ?";
+        
+        $stmt = $this->db->prepare($sql);
+        
+        return $stmt->execute([
+            $data['nombres'],
+            $data['apellidos'],
+            $data['dni'],
+            $fecha_nac, // Aquí pasamos la variable ya evaluada (NULL o fecha)
+            $data['email'],
+            $data['telefono'],
+            $data['escuela_profesional_id'],
+            $data['practicante_id']
+        ]);
     }
 
     public function getCatalogosParaFormulario() {
@@ -76,6 +94,46 @@ class PracticanteModel extends Model {
                 ON DUPLICATE KEY UPDATE nombres=VALUES(nombres), apellidos=VALUES(apellidos)";
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([$data['dni'], $data['nombres'], $data['apellidos'], $data['estado'], "%".$data['escuela']."%"]);
+    }
+    public function getPracticantePorId($id) {
+    // 1. Datos básicos y escuela
+        $sql = "SELECT p.*, ep.nombre as escuela_nombre 
+                FROM Practicantes p
+                LEFT JOIN EscuelasProfesionales ep ON p.escuela_profesional_id = ep.escuela_id
+                WHERE p.practicante_id = ?";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$id]);
+        $practicante = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($practicante) {
+            // 2. Traer el historial de periodos con sus áreas
+            $sqlPer = "SELECT pc.*, a.nombre as area_nombre, l.nombre as local_nombre 
+                    FROM PeriodosConvenio pc
+                    LEFT JOIN Areas a ON pc.area_id = a.area_id
+                    LEFT JOIN Locales l ON pc.local_id = l.local_id
+                    WHERE pc.convenio_id IN (SELECT convenio_id FROM Convenios WHERE practicante_id = ?)
+                    ORDER BY pc.fecha_inicio DESC";
+            $stmtPer = $this->db->prepare($sqlPer);
+            $stmtPer.execute([$id]);
+            $practicante['historial_periodos'] = $stmtPer->fetchAll(PDO::FETCH_ASSOC);
+
+            // 3. Traer TODAS las adendas (Ampliaciones, Reubicaciones y el CESE con su ARCHIVO)
+            $sqlAdendas = "SELECT a.* FROM Adendas a
+                        JOIN Convenios c ON a.convenio_id = c.convenio_id
+                        WHERE c.practicante_id = ?
+                        ORDER BY a.fecha_adenda DESC";
+            $stmtAdendas = $this->db->prepare($sqlAdendas);
+            $stmtAdendas.execute([$id]);
+            $practicante['adendas'] = $stmtAdendas->fetchAll(PDO::FETCH_ASSOC);
+            
+            // 4. Buscar el archivo del convenio original
+            $sqlConv = "SELECT estado_firma, documento_convenio_url FROM Convenios WHERE practicante_id = ? LIMIT 1";
+            $stmtConv = $this->db->prepare($sqlConv);
+            $stmtConv.execute([$id]);
+            $practicante['convenio_principal'] = $stmtConv->fetch(PDO::FETCH_ASSOC);
+        }
+        
+        return $practicante;
     }
 }
 ?>

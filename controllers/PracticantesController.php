@@ -97,18 +97,22 @@ class PracticantesController extends Controller {
         $this->view('practicantes/importar', ['titulo' => 'Importación Masiva']);
     }
 
-    public function editar() {
-        $id = (int)($_GET['id'] ?? 0);
-        $practicante = $this->practicanteModel->getPracticanteDetalle($id);
-        $catalogos = $this->practicanteModel->getCatalogosParaFormulario();
-        
-        $this->view('practicantes/editar', [
-            'titulo' => 'Editar Practicante', 
-            'practicante' => $practicante, 
-            'universidades' => $catalogos['universidades'], 
-            'escuelas' => $catalogos['escuelas'], 
-            'escuelas_json' => json_encode($catalogos['escuelas'])
-        ]);
+    public function editar($id) {
+        $practicante = $this->practicanteModel->getPracticantePorId($id);
+
+        // BLOQUEO SEGURIDAD: Si está cesado, no permitir edición
+        if ($practicante['estado_general'] === 'Cesado') {
+            $_SESSION['mensaje_error'] = 'No se pueden editar los datos de un practicante con estado CESADO.';
+            header('Location: index.php?c=practicantes&m=ver&id=' . $id);
+            exit;
+        }
+
+        $data = [
+            'titulo' => 'Editar Practicante',
+            'practicante' => $practicante,
+            'escuelas' => $this->practicanteModel->getEscuelas()
+        ];
+        $this->view('practicantes/editar', $data);
     }
 
     public function actualizar() {

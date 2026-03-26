@@ -149,9 +149,11 @@ if (isset($_SESSION['mensaje_error'])) {
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <?php if ($c['estado_firma'] == 'Firmado'): ?>
-                                    <a href="<?php echo htmlspecialchars($c['documento_convenio_url']); ?>" target="_blank" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-eye-fill"></i> Ver Convenio
+                                <?php if (!empty($data['convenio']['documento_convenio_url'])): ?>
+                                    <a href="<?php echo htmlspecialchars($data['convenio']['documento_convenio_url'] ?? ''); ?>" 
+                                    target="_blank" 
+                                    class="btn btn-sm btn-outline-danger">
+                                        <i class="bi bi-file-pdf"></i> Ver Convenio Firmado
                                     </a>
                                 <?php else: ?>
                                     <form action="index.php?c=convenios&m=subirConvenioFirmado" method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
