@@ -11,22 +11,16 @@ class ReclutamientoController extends Controller {
         $this->practicanteModel = $this->model('PracticanteModel');
     }
 
-    /**
-     * Página principal. Muestra TODOS los procesos
-     */
     public function index() {
-        // Obtenemos todos los procesos (activos, aceptados, etc.)
         $procesos = $this->reclutamientoModel->getTodosLosProcesos();
-        // OBTENER IDs con ficha
         $procesosConFicha = $this->reclutamientoModel->getProcesosConFicha(); 
         
-        // --- NUEVO: Calcular contadores para el Dashboard ---
         $contadores = [
             'en_evaluacion' => 0,
             'evaluado' => 0,
             'pendiente' => 0,
             'rechazado' => 0,
-            'aceptado' => 0 // A-invisible
+            'aceptado' => 0 
         ];
         
         foreach ($procesos as $proceso) {
@@ -38,45 +32,33 @@ class ReclutamientoController extends Controller {
                 case 'Aceptado': $contadores['aceptado']++; break;
             }
         }
-        // --- FIN NUEVO ---
         
         $data = [
-            'titulo' => 'Dashboard de Reclutamiento', // Título cambiado
+            'titulo' => 'Dashboard de Reclutamiento', 
             'procesos' => $procesos,
             'procesos_con_ficha' => $procesosConFicha,
-            'contadores' => $contadores // Pasar contadores a la vista
+            'contadores' => $contadores 
         ];
 
         $this->view('reclutamiento/index', $data);
     }
 
-    /**
-     * Muestra el formulario para registrar un nuevo candidato.
-     */
     public function nuevo() {
-        // Carga catálogos para los dropdowns
         $catalogos = $this->reclutamientoModel->getCatalogosParaFormulario();
         
         $data = [
             'titulo' => 'Registrar Nuevo Candidato',
             'universidades' => $catalogos['universidades'],
-            'escuelas' => $catalogos['escuelas']
+            'escuelas' => $catalogos['escuelas'],
+            'escuelas_json' => json_encode($catalogos['escuelas'])
         ];
-        
-        // Pasa las escuelas como JSON para el Javascript
-        $data['escuelas_json'] = json_encode($catalogos['escuelas']);
 
         $this->view('reclutamiento/nuevo', $data);
     }
 
-    /**
-     * Procesa el formulario de 'nuevo' candidato.
-     * Incluye validaciones, subida de archivos y unión de PDFs.
-     */
     public function guardar() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
-            // 1. Recolectar y sanitizar datos del POST
             $datosPost = [
                 'dni' => trim($_POST['dni']) ?? '',
                 'nombres' => trim($_POST['nombres']) ?? '',
@@ -87,10 +69,9 @@ class ReclutamientoController extends Controller {
                 'promedio_general' => trim($_POST['promedio_general']) ?? null,
                 'escuela_id' => (int)($_POST['escuela_id']) ?? null,
                 'fecha_postulacion' => trim($_POST['fecha_postulacion']) ?? date('Y-m-d'),
-                'tipo_practica' => trim($_POST['tipo_practica']) ?? '' // Nuevo campo
+                'tipo_practica' => trim($_POST['tipo_practica']) ?? '' 
             ];
             
-            // 2. Validaciones (Server-Side)
             $errores = [];
             if (!preg_match('/^[0-9]{8}$/', $datosPost['dni'])) {
                 $errores[] = 'DNI debe tener 8 dígitos numéricos.';
@@ -111,7 +92,6 @@ class ReclutamientoController extends Controller {
                 $errores[] = 'Tipo de Práctica es obligatorio.';
             }
             
-            // Validar archivos obligatorios
             if (!isset($_FILES['file_cv']) || $_FILES['file_cv']['error'] != UPLOAD_ERR_OK) {
                 $errores[] = 'El archivo CV es obligatorio.';
             }
@@ -121,60 +101,46 @@ class ReclutamientoController extends Controller {
 
             if (!empty($errores)) {
                 $_SESSION['mensaje_error'] = 'Error de validación: ' . implode(' ', $errores);
-                header('Location: index.php?c=reclutamiento&m=nuevo');
+                header('Location: ' . BASE_URL . '?c=reclutamiento&m=nuevo');
                 exit;
             }
 
-            // 3. Llamar al modelo para crear el practicante y el proceso
             try {
-                // Se pasa $datosPost (que incluye 'tipo_practica')
                 $nuevoProceso = $this->reclutamientoModel->crearNuevoProceso($datosPost);
                 $practicante_id = $nuevoProceso['practicante_id'];
                 $proceso_id = $nuevoProceso['proceso_id'];
 
-                // 4. Manejar subida de archivos
-                $ruta_base = __DIR__ . '/../uploads/documentos/';
+                // Usamos BASE_PATH en lugar de __DIR__ para mayor solidez
+                $ruta_base = BASE_PATH . 'uploads/documentos/';
                 if (!is_dir($ruta_base)) mkdir($ruta_base, 0777, true);
 
-                // Orden de unión: CARTA -> DNI -> CV -> DDJJ
                 $archivos = [
-                    'CARTA_PRESENTACION' => $_FILES['file_carta'] ?? null, // 1ro
-                    'DNI' => $_FILES['file_dni'],                        // 2do
-                    'CV' => $_FILES['file_cv'],                           // 3ro
-                    'DECLARACIONES' => $_FILES['file_ddjj'] ?? null       // 4to
+                    'CARTA_PRESENTACION' => $_FILES['file_carta'] ?? null, 
+                    'DNI' => $_FILES['file_dni'],                        
+                    'CV' => $_FILES['file_cv'],                           
+                    'DECLARACIONES' => $_FILES['file_ddjj'] ?? null       
                 ];
 
-                $rutas_locales_subidas = []; // Guardaremos las rutas locales para el merge
+                $rutas_locales_subidas = []; 
 
                 foreach ($archivos as $tipo_documento => $archivo) {
                     if ($archivo && $archivo['error'] == UPLOAD_ERR_OK) {
                         
-                        // Crear un nombre de archivo único
                         $nombre_archivo = $practicante_id . '_' . $tipo_documento . '_' . $proceso_id . '.pdf';
                         $ruta_destino = $ruta_base . $nombre_archivo;
                         
                         if (move_uploaded_file($archivo['tmp_name'], $ruta_destino)) {
-                            // Guardar la URL relativa en la BD
                             $url_relativa = 'uploads/documentos/' . $nombre_archivo;
-                            
-                            // Usamos el modelo de reclutamiento para añadir el doc
                             $this->reclutamientoModel->addDocumento($practicante_id, $proceso_id, $tipo_documento, $url_relativa);
-
-                            // Guardar ruta local para el merge
                             $rutas_locales_subidas[$tipo_documento] = $ruta_destino;
                         }
                     }
                 }
                 
-                // 5. LÓGICA DE UNIÓN (MERGE) DE PDFs
                 try {
-                    // Usamos la clase (ahora disponible globalmente gracias a index.php)
                     $pdfConsolidado = new \setasign\Fpdi\Fpdi();
                     
-                    // Iteramos sobre las rutas locales EN EL ORDEN CORRECTO
                     foreach (array_keys($archivos) as $tipo_documento) {
-                        
-                        // Verificamos si el archivo se subió
                         if (isset($rutas_locales_subidas[$tipo_documento])) {
                             $ruta_pdf = $rutas_locales_subidas[$tipo_documento];
                             
@@ -189,51 +155,40 @@ class ReclutamientoController extends Controller {
                         }
                     }
 
-                    // 6. Guardar el PDF consolidado
                     $nombre_consolidado = $practicante_id . '_CONSOLIDADO_' . $proceso_id . '.pdf';
                     $ruta_consolidado_local = $ruta_base . $nombre_consolidado;
                     $url_consolidado_relativa = 'uploads/documentos/' . $nombre_consolidado;
 
                     $pdfConsolidado->Output($ruta_consolidado_local, 'F');
                     
-                    // 7. Guardar el CONSOLIDADO en la BD
                     $this->reclutamientoModel->addDocumento($practicante_id, $proceso_id, 'CONSOLIDADO', $url_consolidado_relativa);
 
                     $_SESSION['mensaje_exito'] = 'Candidato registrado. Documentos subidos y CONSOLIDADOS exitosamente.';
 
-                // Usamos \Throwable para atrapar Errores Fatales (ej: PDF corrupto)
                 } catch (\Throwable $e) { 
                     $_SESSION['mensaje_error'] = 'Error FATAL al unir PDFs: ' . $e->getMessage() . ' en la línea ' . $e->getLine();
-                    
-                    // Redirigimos para ver el error, no nos quedamos en blanco.
-                    header('Location: index.php?c=reclutamiento');
+                    header('Location: ' . BASE_URL . '?c=reclutamiento');
                     exit;
                 }
 
-            // Catch del 'try' principal (Paso 3)
             } catch (Exception $e) {
                 $_SESSION['mensaje_error'] = 'Error al guardar en BD: ' . $e->getMessage();
             }
 
-            // Redirección final si todo fue bien
-            header('Location: index.php?c=reclutamiento');
+            header('Location: ' . BASE_URL . '?c=reclutamiento');
             exit;
 
         } else {
-            // Si no es POST, redirigir
-            header('Location: index.php?c=reclutamiento');
+            header('Location: ' . BASE_URL . '?c=reclutamiento');
             exit;
         }
     }
 
-    /**
-     * Muestra el formulario para calificar una entrevista.
-     */
     public function evaluar() {
         $proceso_id = (int)($_GET['id'] ?? 0);
 
         if ($proceso_id === 0) {
-            header('Location: index.php?c=reclutamiento');
+            header('Location: ' . BASE_URL . '?c=reclutamiento');
             exit;
         }
 
@@ -241,11 +196,10 @@ class ReclutamientoController extends Controller {
 
         if (!$proceso) {
             $_SESSION['mensaje_error'] = 'Proceso no encontrado.';
-            header('Location: index.php?c=reclutamiento');
+            header('Location: ' . BASE_URL . '?c=reclutamiento');
             exit;
         }
 
-        // Obtener los documentos
         $documentos = $this->reclutamientoModel->getDocumentosPorProceso($proceso_id);
         
         $data = [
@@ -257,17 +211,11 @@ class ReclutamientoController extends Controller {
         $this->view('reclutamiento/evaluar', $data);
     }
 
-    /**
-     * Guarda las notas de la entrevista (ResultadosEntrevista)
-     * y actualiza el puntaje final en ProcesosReclutamiento.
-     * Marca el proceso como 'Evaluado'.
-     */
     public function guardarEvaluacion() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             $proceso_id = (int)($_POST['proceso_id'] ?? 0);
             
-            // Recolectamos datos adicionales
             $datosEntrevista = [
                 'proceso_id' => $proceso_id,
                 'comentarios' => trim($_POST['comentarios_adicionales']) ?? '',
@@ -292,22 +240,17 @@ class ReclutamientoController extends Controller {
 
 
                 if ($datosEntrevista[$nota_key] !== null && $datosEntrevista[$nota_key] >= 0 && $datosEntrevista[$peso_key] !== null && $datosEntrevista[$peso_key] > 0) {
-                    
                     $suma_ponderada += $datosEntrevista[$nota_key] * $datosEntrevista[$peso_key];
                     $suma_pesos_total += $datosEntrevista[$peso_key];
                 }
             }
             
-            // Calcular promedio ponderado
             $promedio = ($suma_pesos_total > 0) ? ($suma_ponderada / $suma_pesos_total) : 0;
             $datosEntrevista['puntuacion_final'] = round($promedio, 2);
 
-            // Llamar al modelo
             try {
                 $this->reclutamientoModel->actualizarEntrevista($datosEntrevista);
                 $this->reclutamientoModel->actualizarFechaEntrevista($proceso_id, $datosEntrevista['fecha_entrevista']);
-                
-                // *** Marca el proceso como 'Evaluado' ***
                 $this->reclutamientoModel->cambiarEstadoProceso($proceso_id, 'Evaluado');
                 
                 $_SESSION['mensaje_exito'] = 'Evaluación guardada y proceso marcado como "Evaluado".';
@@ -315,19 +258,15 @@ class ReclutamientoController extends Controller {
                 $_SESSION['mensaje_error'] = 'Error al guardar evaluación: ' . $e->getMessage();
             }
 
-            // === CAMBIO 1: Redirigir al índice de reclutamiento ===
-            header('Location: index.php?c=reclutamiento');
+            header('Location: ' . BASE_URL . '?c=reclutamiento');
             exit;
 
         } else {
-            header('Location: index.php?c=reclutamiento');
+            header('Location: ' . BASE_URL . '?c=reclutamiento');
             exit;
         }
     }
 
-    /**
-     * Cambia el estado de un proceso (Aceptado, Rechazado, Pendiente).
-     */
     public function actualizarEstado() {
         $proceso_id = (int)($_GET['id'] ?? 0);
         $nuevo_estado = trim($_GET['estado'] ?? '');
@@ -345,19 +284,15 @@ class ReclutamientoController extends Controller {
              $_SESSION['mensaje_error'] = 'Datos inválidos para actualizar estado.';
         }
 
-        header('Location: index.php?c=reclutamiento');
+        header('Location: ' . BASE_URL . '?c=reclutamiento');
         exit;
     }
 
-    /**
-     * Muestra la revisión de una evaluación ya completada (solo lectura).
-     * *** Ahora también muestra el form para subir la ficha ***
-     */
     public function revisar() {
         $proceso_id = (int)($_GET['id'] ?? 0);
 
         if ($proceso_id === 0) {
-            header('Location: index.php?c=reclutamiento');
+            header('Location: ' . BASE_URL . '?c=reclutamiento');
             exit;
         }
 
@@ -365,7 +300,7 @@ class ReclutamientoController extends Controller {
 
         if (!$proceso) {
             $_SESSION['mensaje_error'] = 'Proceso no encontrado.';
-            header('Location: index.php?c=reclutamiento');
+            header('Location: ' . BASE_URL . '?c=reclutamiento');
             exit;
         }
 
@@ -381,10 +316,6 @@ class ReclutamientoController extends Controller {
         $this->view('reclutamiento/revisar', $data); 
     }
     
-    /**
-     * Sube la ficha de evaluación firmada.
-     * *** REDIRECCIÓN CORREGIDA ***
-     */
     public function subirFicha() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $proceso_id = (int)$_POST['proceso_id'];
@@ -393,7 +324,7 @@ class ReclutamientoController extends Controller {
 
             if ($proceso_id > 0 && $practicante_id > 0 && $archivo && $archivo['error'] == UPLOAD_ERR_OK) {
                 
-                $ruta_base = __DIR__ . '/../uploads/documentos/';
+                $ruta_base = BASE_PATH . 'uploads/documentos/';
                 if (!is_dir($ruta_base)) mkdir($ruta_base, 0777, true);
 
                 $nombre_archivo = $practicante_id . '_FICHA_EVALUACION_' . $proceso_id . '.pdf';
@@ -402,7 +333,6 @@ class ReclutamientoController extends Controller {
                 if (move_uploaded_file($archivo['tmp_name'], $ruta_destino)) {
                     $url_relativa = 'uploads/documentos/' . $nombre_archivo;
                     try {
-                        // 1. Guardar en la BD
                         $this->reclutamientoModel->addDocumento($practicante_id, $proceso_id, 'FICHA_CALIFICACION', $url_relativa);
                         
                         $_SESSION['mensaje_exito'] = 'Ficha firmada subida exitosamente.';
@@ -416,11 +346,11 @@ class ReclutamientoController extends Controller {
                 $_SESSION['mensaje_error'] = 'Datos incompletos o error en la subida del archivo.';
             }
 
-            // === CAMBIO 2: Redirigir al índice de reclutamiento ===
-            header('Location: index.php?c=reclutamiento');
+            header('Location: ' . BASE_URL . '?c=reclutamiento');
             exit;
         }
-        header('Location: index.php?c=reclutamiento');
+        header('Location: ' . BASE_URL . '?c=reclutamiento');
         exit;
     }
 }
+?>

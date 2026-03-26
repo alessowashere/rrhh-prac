@@ -1,13 +1,9 @@
 <?php
 // models/ReclutamientoModel.php
 
-class ReclutamientoModel {
+class ReclutamientoModel extends Model {
     
-    private $pdo;
-
-    public function __construct() {
-        $this->pdo = Database::getInstance()->getConnection();
-    }
+    // Ya no necesitamos el constructor ni $this->pdo porque hereda $this->db del core/Model.php
 
     /**
      * Obtiene TODOS los procesos (para el nuevo listado)
@@ -26,7 +22,7 @@ class ReclutamientoModel {
                 LEFT JOIN Universidades u ON ep.universidad_id = u.universidad_id
                 ORDER BY pr.fecha_postulacion DESC";
         
-        $stmt = $this->pdo->query($sql);
+        $stmt = $this->db->query($sql);
         return $stmt->fetchAll();
     }
 
@@ -35,10 +31,10 @@ class ReclutamientoModel {
      */
     public function getCatalogosParaFormulario() {
         $sql_uni = "SELECT universidad_id, nombre FROM Universidades ORDER BY nombre";
-        $stmt_uni = $this->pdo->query($sql_uni);
+        $stmt_uni = $this->db->query($sql_uni);
         
         $sql_esc = "SELECT escuela_id, universidad_id, nombre FROM EscuelasProfesionales ORDER BY nombre";
-        $stmt_esc = $this->pdo->query($sql_esc);
+        $stmt_esc = $this->db->query($sql_esc);
 
         return [
             'universidades' => $stmt_uni->fetchAll(),
@@ -51,12 +47,12 @@ class ReclutamientoModel {
      * Modificado para incluir 'tipo_practica' y devolver IDs.
      */
     public function crearNuevoProceso(array $data) {
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
         
         try {
             // 1. Verificar si el practicante (por DNI) ya existe
             $sql_find_prac = "SELECT practicante_id FROM Practicantes WHERE dni = ?";
-            $stmt_find = $this->pdo->prepare($sql_find_prac);
+            $stmt_find = $this->db->prepare($sql_find_prac);
             $stmt_find->execute([$data['dni']]);
             $practicante = $stmt_find->fetch();
 
@@ -70,7 +66,7 @@ class ReclutamientoModel {
                                         nombres = ?, apellidos = ?, fecha_nacimiento = ?, email = ?, 
                                         telefono = ?, promedio_general = ?, escuela_profesional_id = ?
                                     WHERE practicante_id = ?";
-                $stmt_update_prac = $this->pdo->prepare($sql_update_prac);
+                $stmt_update_prac = $this->db->prepare($sql_update_prac);
                 $stmt_update_prac->execute([
                     $data['nombres'], $data['apellidos'], $data['fecha_nacimiento'], $data['email'],
                     $data['telefono'], $data['promedio_general'], $data['escuela_id'],
@@ -84,7 +80,7 @@ class ReclutamientoModel {
                                  VALUES 
                                     (?, ?, ?, ?, ?, ?, ?, ?, 'Candidato')";
                 
-                $stmt_new_prac = $this->pdo->prepare($sql_new_prac);
+                $stmt_new_prac = $this->db->prepare($sql_new_prac);
                 $stmt_new_prac->execute([
                     $data['dni'], $data['nombres'], $data['apellidos'],
                     $data['fecha_nacimiento'] ?: null,
@@ -94,66 +90,51 @@ class ReclutamientoModel {
                     $data['escuela_id']
                 ]);
                 
-                $practicante_id = $this->pdo->lastInsertId();
+                $practicante_id = $this->db->lastInsertId();
             }
 
             // 2. Crear el Proceso de Reclutamiento
-            // (Requiere que modifiques la BD, ver punto 6)
             $sql_new_proc = "INSERT INTO ProcesosReclutamiento 
                                 (practicante_id, fecha_postulacion, estado_proceso, tipo_practica) 
                              VALUES 
                                 (?, ?, 'En Evaluación', ?)";
             
-            $stmt_new_proc = $this->pdo->prepare($sql_new_proc);
+            $stmt_new_proc = $this->db->prepare($sql_new_proc);
             $stmt_new_proc->execute([
                 $practicante_id,
                 $data['fecha_postulacion'],
-                $data['tipo_practica'] // Nuevo campo
+                $data['tipo_practica'] 
             ]);
             
-            $proceso_id = $this->pdo->lastInsertId();
+            $proceso_id = $this->db->lastInsertId();
 
             // 3. Crear el registro 'ResultadosEntrevista' vacío
             $sql_new_res = "INSERT INTO ResultadosEntrevista (proceso_id) VALUES (?)";
-            $stmt_new_res = $this->pdo->prepare($sql_new_res);
+            $stmt_new_res = $this->db->prepare($sql_new_res);
             $stmt_new_res->execute([$proceso_id]);
 
-            $this->pdo->commit();
+            $this->db->commit();
             
-            // Devolver IDs para la subida de archivos
             return ['practicante_id' => $practicante_id, 'proceso_id' => $proceso_id];
 
         } catch (Exception $e) {
-            $this->pdo->rollBack();
+            $this->db->rollBack();
             throw new Exception("Error en la base de datos: " . $e->getMessage());
         }
     }
 
-    /**
-     * NUEVO: Agrega un documento a la tabla Documentos.
-     */
-    /**
-     * NUEVO: Agrega un documento a la tabla Documentos.
-     * MODIFICADO: Ahora guarda el proceso_id (Requiere Paso A: ALTER TABLE).
-     */
     public function addDocumento(int $practicante_id, int $proceso_id, string $tipo_documento, string $url_archivo) {
-        
         $sql = "INSERT INTO Documentos (practicante_id, proceso_id, tipo_documento, url_archivo) 
                 VALUES (?, ?, ?, ?)";
-        
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         return $stmt->execute([$practicante_id, $proceso_id, $tipo_documento, $url_archivo]);
     }
 
-
-    /**
-     * Obtiene toda la información de un proceso.
-     */
     public function getProcesoCompleto(int $proceso_id) {
         $sql = "SELECT 
                     p.*, 
                     pr.*, 
-                    pr.tipo_practica, -- <--- AÑADIDO
+                    pr.tipo_practica,
                     re.*,
                     ep.nombre AS escuela_nombre,
                     u.nombre AS universidad_nombre
@@ -164,20 +145,15 @@ class ReclutamientoModel {
                 LEFT JOIN Universidades u ON ep.universidad_id = u.universidad_id
                 WHERE pr.proceso_id = ?";
         
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $stmt->execute([$proceso_id]);
         return $stmt->fetch();
     }
 
-    /**
-     * Actualiza la tabla ResultadosEntrevista.
-     * Modificado para aceptar NULLs en las notas.
-     */
     public function actualizarEntrevista(array $data) {
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
         
         try {
-            // 1. Actualizar la tabla de Resultados
             $sql_res = "UPDATE ResultadosEntrevista SET
                             campo_1_nombre = ?, campo_1_nota = ?, campo_1_peso = ?,
                             campo_2_nombre = ?, campo_2_nota = ?, campo_2_peso = ?,
@@ -192,7 +168,7 @@ class ReclutamientoModel {
                             comentarios_adicionales = ?
                         WHERE proceso_id = ?";
             
-            $stmt_res = $this->pdo->prepare($sql_res);
+            $stmt_res = $this->db->prepare($sql_res);
             $stmt_res->execute([
                 $data['campo_1_nombre'], $data['campo_1_nota'], $data['campo_1_peso'],
                 $data['campo_2_nombre'], $data['campo_2_nota'], $data['campo_2_peso'],
@@ -208,36 +184,34 @@ class ReclutamientoModel {
                 $data['proceso_id']
             ]);
 
-            // 2. Actualizar el puntaje final en la tabla de Proceso
             $sql_proc = "UPDATE ProcesosReclutamiento SET 
                             puntuacion_final_entrevista = ? 
                          WHERE proceso_id = ?";
             
-            $stmt_proc = $this->pdo->prepare($sql_proc);
+            $stmt_proc = $this->db->prepare($sql_proc);
             $stmt_proc->execute([$data['puntuacion_final'], $data['proceso_id']]);
 
-            $this->pdo->commit();
+            $this->db->commit();
             return true;
 
         } catch (Exception $e) {
-            $this->pdo->rollBack();
+            $this->db->rollBack();
             throw new Exception("Error al actualizar entrevista: " . $e->getMessage());
         }
     }
-    /**
-     * Cambia el estado de un ProcesoReclutamiento.
-     */
+
     public function cambiarEstadoProceso(int $proceso_id, string $nuevo_estado) {
-        // (Este método ya funciona para los nuevos estados 'Pendiente')
         $sql = "UPDATE ProcesosReclutamiento SET estado_proceso = ? WHERE proceso_id = ?";
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         return $stmt->execute([$nuevo_estado, $proceso_id]);
     }
+
     public function actualizarFechaEntrevista(int $proceso_id, string $fecha) {
         $sql = "UPDATE ProcesosReclutamiento SET fecha_entrevista = ? WHERE proceso_id = ?";
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         return $stmt->execute([$fecha, $proceso_id]);
     }
+
     public function getDocumentosPorProceso(int $proceso_id) {
         $sql = "SELECT tipo_documento, url_archivo 
                 FROM Documentos 
@@ -250,42 +224,34 @@ class ReclutamientoModel {
                     END,
                     fecha_carga ASC";
         
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $stmt->execute([$proceso_id]);
         return $stmt->fetchAll();
     }
-    /**
-     * Devuelve un array con los proceso_id que ya tienen una FICHA_CALIFICACION.
-     */
+
     public function getProcesosConFicha() {
         $sql = "SELECT DISTINCT proceso_id 
                 FROM Documentos 
                 WHERE tipo_documento = 'FICHA_CALIFICACION' AND proceso_id IS NOT NULL";
-        $stmt = $this->pdo->query($sql);
-        // Usamos PDO::FETCH_COLUMN para obtener solo la columna proceso_id en un array simple
+        $stmt = $this->db->query($sql);
         return $stmt->fetchAll(PDO::FETCH_COLUMN, 0); 
     }
     
-    /**
-     * NUEVO: Cuenta los candidatos 'En Proceso' (Evaluación o Evaluados) para el Dashboard.
-     */
     public function contarEnProceso() {
         $sql = "SELECT COUNT(proceso_id) AS total 
                 FROM ProcesosReclutamiento 
                 WHERE estado_proceso IN ('En Evaluación', 'Evaluado')";
-        $stmt = $this->pdo->query($sql);
+        $stmt = $this->db->query($sql);
         return $stmt->fetch()['total'] ?? 0;
     }
     
-    /**
-     * [NUEVO] Obtiene datos básicos de un proceso (para jalar el tipo de práctica).
-     */
     public function getProcesoSimple(int $proceso_id) {
         $sql = "SELECT proceso_id, practicante_id, tipo_practica 
                 FROM ProcesosReclutamiento 
                 WHERE proceso_id = ?";
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $stmt->execute([$proceso_id]);
         return $stmt->fetch();
     }
 }
+?>

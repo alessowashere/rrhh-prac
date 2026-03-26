@@ -1,15 +1,10 @@
 <?php
-class ReporteModel {
+// models/ReporteModel.php
 
-    private $db; 
+// 1. Heredamos de Model para usar $this->db de forma segura
+class ReporteModel extends Model {
 
-    // 1. Constructor para recibir la conexión BD
-    public function __construct($db) {
-        if (!($db instanceof PDO)) {
-            die("FATAL ERROR in ReporteModel Constructor: DB connection invalid!");
-        }
-        $this->db = $db;
-    }
+    // Ya no necesitamos el constructor, el core se encarga de instanciar $this->db
 
     // 2. SQL REAL para Reporte General
     public function getReporteGeneral($filtros) {
@@ -35,7 +30,8 @@ class ReporteModel {
                     }
                     // --- FIN CAMBIO LÓGICA DE PERÍODO ---
 
-                    $sql .= " LEFT JOIN (SELECT periodo_id, ... ) AS v_calc ON per.id = v_calc.periodo_id
+                    // CORRECCIÓN: Se reemplazó el "..." por la subconsulta completa real
+                    $sql .= " LEFT JOIN (SELECT periodo_id, SUM(dias_tomados) as dias_reales FROM vacaciones WHERE estado IN ('APROBADO', 'GOZADO') GROUP BY periodo_id) AS v_calc ON per.id = v_calc.periodo_id
                             WHERE p.estado = 'ACTIVO'
                             ORDER BY p.nombre_completo ASC";
 
@@ -74,7 +70,6 @@ class ReporteModel {
                 $sql .= " AND v.fecha_fin <= :fecha_fin";
                 $params[':fecha_fin'] = $filtros['fecha_fin'];
             }
-            // ... (después de los if de fecha_inicio y fecha_fin) ...
 
             // --- INICIO CÓDIGO AÑADIDO ---
             if (!empty($filtros['anio_inicio'])) {
@@ -143,7 +138,8 @@ class ReporteModel {
                     }
                     // --- FIN CAMBIO LÓGICA DE PERÍODO ---
 
-                    $sql .= " LEFT JOIN (SELECT periodo_id, ... ) AS v_calc ON per.id = v_calc.periodo_id
+                    // CORRECCIÓN: Se reemplazó el "..." por la subconsulta completa real
+                    $sql .= " LEFT JOIN (SELECT periodo_id, SUM(dias_tomados) as dias_reales FROM vacaciones WHERE estado IN ('APROBADO', 'GOZADO') GROUP BY periodo_id) AS v_calc ON per.id = v_calc.periodo_id
                     WHERE p.estado = 'ACTIVO'
                     HAVING saldo_calculado != 0
                     ORDER BY saldo_calculado ASC";
@@ -208,7 +204,6 @@ class ReporteModel {
             return [];
         }
     }
-// ... (después de getReportePorArea()) ...
 
     // --- NUEVA FUNCIÓN (PARA REQUEST 3) ---
     public function getReporteVacacionesPorArea($filtros) {
@@ -242,6 +237,7 @@ class ReporteModel {
             return [];
         }
     }
+
     public function getReporteGeneralPorArea($filtros) {
         try {
             $sql = "SELECT p.id, p.nombre_completo, p.cargo, p.area, p.fecha_ingreso,
@@ -278,6 +274,7 @@ class ReporteModel {
             return [];
         }
     }
+
     public function getReporteVacacionesGeneralPorArea($filtros) {
         try {
             $sql = "SELECT p.area, p.nombre_completo, v.fecha_inicio, v.fecha_fin, v.dias_tomados, v.estado, v.tipo,
@@ -306,5 +303,5 @@ class ReporteModel {
             return [];
         }
     }
-    // --- FIN NUEVA FUNCIÓN ---
-} // Fin de la clase
+}
+?>
