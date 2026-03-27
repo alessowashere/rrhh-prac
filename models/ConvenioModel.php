@@ -180,7 +180,7 @@ class ConvenioModel extends Model {
                 JOIN Practicantes p ON pr.practicante_id = p.practicante_id
                 LEFT JOIN EscuelasProfesionales ep ON p.escuela_profesional_id = ep.escuela_id
                 WHERE pr.estado_proceso = 'Aceptado'
-                AND pr.proceso_id NOT IN (SELECT proceso_id FROM Convenios)";
+                AND pr.proceso_id NOT IN (SELECT proceso_id FROM Convenios WHERE proceso_id IS NOT NULL)";
         return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
