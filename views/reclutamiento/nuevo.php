@@ -106,7 +106,7 @@ if (isset($_SESSION['mensaje_error'])) {
             </div>
             
             <h5 class="mb-3 text-primary border-bottom pb-2">3. Clasificador de Documentos</h5>
-            <p class="text-muted small">Arrastra tus PDFs aquí. Usa la <i class="bi bi-zoom-in text-primary"></i> <b>lupa</b> para ampliar la página y leer los datos.</p>
+            <p class="text-muted small">Arrastra tus PDFs aquí. Usa la <i class="bi bi-zoom-in text-primary"></i> <b>lupa</b> para extraer la ventana y leer mientras escribes.</p>
 
             <div id="main-dropzone" class="border border-primary border-2 border-dashed rounded-3 p-3 text-center mb-3 bg-light" style="cursor: pointer; transition: 0.3s;">
                 <i class="bi bi-cloud-arrow-up fs-2 text-primary"></i>
@@ -168,6 +168,7 @@ if (isset($_SESSION['mensaje_error'])) {
                 <input type="file" id="file_dni" name="file_dni" accept=".pdf">
                 <input type="file" id="file_carta" name="file_carta" accept=".pdf">
                 <input type="file" id="file_ddjj" name="file_ddjj" accept=".pdf">
+                <input type="file" id="file_consolidado" name="file_consolidado" accept=".pdf">
             </div>
             
             <div id="pdf_global_error" class="alert alert-danger d-none mt-3 fw-bold fs-6"></div>
@@ -181,22 +182,21 @@ if (isset($_SESSION['mensaje_error'])) {
     </div>
 </div>
 
-<div class="modal fade" id="modalVistaPreviaPDF" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-    <div class="modal-content">
-      <div class="modal-header bg-dark text-white py-2">
-        <h5 class="modal-title fs-5"><i class="bi bi-file-earmark-pdf text-danger"></i> Vista Ampliada</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body text-center bg-secondary" style="min-height: 70vh;">
-          <div class="spinner-border text-light mt-5" role="status" id="modal-spinner"></div>
-          <canvas id="modal-canvas-hd" class="img-fluid shadow-lg rounded d-none" style="max-width: 100%; border: 1px solid #333;"></canvas>
-      </div>
-      <div class="modal-footer py-1">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar y volver al formulario</button>
-      </div>
+<div id="floating-pdf-viewer" class="d-none shadow-lg" style="position: fixed; bottom: 20px; right: 20px; width: 450px; height: 600px; z-index: 1050; border: 2px solid #343a40; border-radius: 8px; background: #fff; display: flex; flex-direction: column; overflow: hidden; resize: both; min-width: 300px; min-height: 300px;">
+    <div id="floating-pdf-header" class="bg-dark text-white p-2 d-flex justify-content-between align-items-center" style="cursor: grab; user-select: none;">
+        <span class="fw-bold fs-6"><i class="bi bi-arrows-move me-2"></i> Lector</span>
+        
+        <div class="d-flex align-items-center">
+            <button type="button" class="btn btn-sm btn-dark border-secondary py-0 px-2" id="btn-zoom-out" title="Alejar"><i class="bi bi-dash-lg"></i></button>
+            <span id="zoom-indicador" class="mx-2 small fw-bold" style="min-width: 40px; text-align: center;">100%</span>
+            <button type="button" class="btn btn-sm btn-dark border-secondary py-0 px-2 me-3" id="btn-zoom-in" title="Acercar"><i class="bi bi-plus-lg"></i></button>
+            <button type="button" class="btn-close btn-close-white btn-sm" id="btn-cerrar-visor"></button>
+        </div>
     </div>
-  </div>
+    <div id="floating-pdf-body" class="bg-secondary position-relative" style="flex-grow: 1; overflow: auto; text-align: center;">
+        <div class="spinner-border text-light mt-5 d-none" role="status" id="floating-spinner"></div>
+        <canvas id="floating-canvas-hd" class="d-none shadow-sm" style="width: 100%; border-bottom: 1px solid #333; transition: width 0.2s ease;"></canvas>
+    </div>
 </div>
 
 <style>
@@ -248,6 +248,62 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // LÓGICA DE LA VENTANA FLOTANTE Y EL ZOOM
+    const viewer = document.getElementById('floating-pdf-viewer');
+    const header = document.getElementById('floating-pdf-header');
+    let isDraggingViewer = false, initialX, initialY;
+
+    header.addEventListener('mousedown', (e) => {
+        if(e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+        
+        isDraggingViewer = true;
+        header.style.cursor = 'grabbing';
+        const rect = viewer.getBoundingClientRect();
+        initialX = e.clientX - rect.left;
+        initialY = e.clientY - rect.top;
+        
+        viewer.style.bottom = 'auto';
+        viewer.style.right = 'auto';
+        
+        document.addEventListener('mousemove', dragViewer);
+        document.addEventListener('mouseup', stopDragViewer);
+    });
+
+    function dragViewer(e) {
+        if (!isDraggingViewer) return;
+        e.preventDefault();
+        viewer.style.left = (e.clientX - initialX) + 'px';
+        viewer.style.top = (e.clientY - initialY) + 'px';
+    }
+
+    function stopDragViewer() {
+        isDraggingViewer = false;
+        header.style.cursor = 'grab';
+        document.removeEventListener('mousemove', dragViewer);
+        document.removeEventListener('mouseup', stopDragViewer);
+    }
+    
+    // Controles de Visor
+    const btnZoomIn = document.getElementById('btn-zoom-in');
+    const btnZoomOut = document.getElementById('btn-zoom-out');
+    const btnCerrarVisor = document.getElementById('btn-cerrar-visor');
+    const canvasHd = document.getElementById('floating-canvas-hd');
+    const zoomIndicador = document.getElementById('zoom-indicador');
+    let currentZoomPct = 100;
+
+    function cambiarZoom(delta) {
+        currentZoomPct += delta;
+        if(currentZoomPct < 50) currentZoomPct = 50;
+        if(currentZoomPct > 400) currentZoomPct = 400; 
+        
+        zoomIndicador.innerText = currentZoomPct + '%';
+        canvasHd.style.width = currentZoomPct + '%';
+    }
+
+    if (btnZoomIn) btnZoomIn.addEventListener('click', () => cambiarZoom(25));
+    if (btnZoomOut) btnZoomOut.addEventListener('click', () => cambiarZoom(-25));
+    if (btnCerrarVisor) btnCerrarVisor.addEventListener('click', () => viewer.classList.add('d-none'));
+
     // VARIABLES PARA PDF
     const boxes = {
         bandeja: document.getElementById('bandeja-sueltas'),
@@ -290,19 +346,11 @@ document.addEventListener('DOMContentLoaded', function() {
             try {
                 const fileId = 'doc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
 
-                // 1. PDF-LIB: Carga desde ArrayBuffer (Ligero y perfecto para el envío)
                 const arrayBuffer = await file.arrayBuffer();
                 sourcePdfs[fileId] = await PDFLib.PDFDocument.load(arrayBuffer);
 
-                // 2. PDF.JS: Carga desde Base64 (Evita el conflicto de memoria y renderiza sin ruido/blanco)
-                const dataUrl = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = error => reject(error);
-                    reader.readAsDataURL(file);
-                });
-                
-                const pdfJsDoc = await pdfjsLib.getDocument(dataUrl).promise;
+                const fileUrl = URL.createObjectURL(file);
+                const pdfJsDoc = await pdfjsLib.getDocument(fileUrl).promise;
                 pdfJsDocs[fileId] = pdfJsDoc;
 
                 const numPages = sourcePdfs[fileId].getPageCount();
@@ -314,32 +362,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     pageItem.dataset.pageIndex = i;
                     
                     pageItem.innerHTML = `
-                        <button type="button" class="btn btn-primary btn-float-left rounded-circle shadow-sm btn-ampliar" title="Ampliar Vista"><i class="bi bi-zoom-in"></i></button>
+                        <button type="button" class="btn btn-primary btn-float-left rounded-circle shadow-sm btn-ampliar" title="Extraer Vista"><i class="bi bi-zoom-in"></i></button>
                         <button type="button" class="btn btn-danger btn-float-right rounded-circle shadow-sm btn-quitar" title="Eliminar Hoja"><i class="bi bi-x-lg"></i></button>
                     `;
                     
                     const canvas = document.createElement('canvas');
                     canvas.className = 'pdf-thumb-canvas';
                     
-                    try {
-                        const page = await pdfJsDoc.getPage(i + 1);
-                        const viewport = page.getViewport({ scale: 1 }); 
-                        
-                        canvas.width = viewport.width; 
-                        canvas.height = viewport.height;
-                        
-                        // Respetar dimensiones CSS
-                        canvas.style.width = "100%";
-                        canvas.style.height = "110px";
-
-                        const ctx = canvas.getContext('2d');
-                        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-                    } catch (renderError) {
-                        console.error("Error dibujando miniatura", renderError);
-                    }
-
                     pageItem.appendChild(canvas);
-                    pageItem.innerHTML += `<div class="w-100 text-center"><div class="fw-bold text-dark" style="font-size:0.75rem;">Pág. ${i + 1}</div></div>`;
+                    pageItem.insertAdjacentHTML('beforeend', `<div class="w-100 text-center"><div class="fw-bold text-dark" style="font-size:0.75rem;">Pág. ${i + 1}</div></div>`);
 
                     pageItem.querySelector('.btn-quitar').addEventListener('click', (e) => {
                         e.stopPropagation(); pageItem.remove();
@@ -351,6 +382,19 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
 
                     boxes.bandeja.appendChild(pageItem);
+                    
+                    try {
+                        const page = await pdfJsDoc.getPage(i + 1);
+                        const viewport = page.getViewport({ scale: 1 }); 
+                        
+                        canvas.width = viewport.width; 
+                        canvas.height = viewport.height;
+
+                        const ctx = canvas.getContext('2d');
+                        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                    } catch (renderError) {
+                        console.error("Error dibujando miniatura", renderError);
+                    }
                 }
             } catch (error) {
                 console.error(error);
@@ -362,44 +406,42 @@ document.addEventListener('DOMContentLoaded', function() {
         fileInputVirtual.value = ''; 
     }
 
-    // ==========================================
-    // MAGIA DEL POP-UP (MODAL DE ALTA DEFINICIÓN)
-    // ==========================================
-    const modalPdf = new bootstrap.Modal(document.getElementById('modalVistaPreviaPDF'));
-    
     async function abrirVistaPrevia(fileId, numeroPagina) {
-        modalPdf.show();
+        viewer.classList.remove('d-none');
         
-        const canvas = document.getElementById('modal-canvas-hd');
-        const spinner = document.getElementById('modal-spinner');
-        const ctx = canvas.getContext('2d');
+        const spinner = document.getElementById('floating-spinner');
+        const ctx = canvasHd.getContext('2d');
         
-        canvas.classList.add('d-none');
+        currentZoomPct = 100;
+        zoomIndicador.innerText = '100%';
+        canvasHd.style.width = '100%';
+
+        canvasHd.classList.add('d-none');
         spinner.classList.remove('d-none');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.clearRect(0, 0, canvasHd.width, canvasHd.height);
 
         try {
             const pdfJsDoc = pdfJsDocs[fileId];
             const page = await pdfJsDoc.getPage(numeroPagina);
             
-            const viewport = page.getViewport({ scale: 1.8 }); 
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
+            const viewport = page.getViewport({ scale: 2.0 }); 
+            canvasHd.width = viewport.width;
+            canvasHd.height = viewport.height;
             
             await page.render({ canvasContext: ctx, viewport: viewport }).promise;
             
             spinner.classList.add('d-none');
-            canvas.classList.remove('d-none');
+            canvasHd.classList.remove('d-none');
             
         } catch (error) {
             console.error("Fallo al cargar HD", error);
             spinner.classList.add('d-none');
-            alert("No se pudo cargar la vista ampliada de esta página.");
+            alert("No se pudo cargar la vista de esta página.");
         }
     }
 
     // ==========================================
-    // ENSAMBLAJE FINAL Y ENVÍO DEL FORMULARIO
+    // ENSAMBLAJE FINAL DE TODOS LOS ARCHIVOS
     // ==========================================
     const form = document.querySelector('form.needs-validation');
     const btnSubmit = document.getElementById('btn-submit-form');
@@ -421,10 +463,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         btnSubmit.disabled = true;
-        btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Ensamblando archivos finales...';
+        btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Compilando archivos finales, por favor espera...';
 
         try {
             const inputsDestino = ['file_dni', 'file_cv', 'file_carta', 'file_ddjj'];
+            
+            const finalConsolidadoPdf = await PDFLib.PDFDocument.create();
+            let consolidadoHasPages = false;
 
             for (let inputName of inputsDestino) {
                 const caja = boxes[inputName];
@@ -436,10 +481,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     for (let el of pageElements) {
                         const fileId = el.dataset.fileId;
                         const pageIndex = parseInt(el.dataset.pageIndex);
-                        
                         const srcDoc = sourcePdfs[fileId];
-                        const [copiedPage] = await mergedPdf.copyPages(srcDoc, [pageIndex]);
-                        mergedPdf.addPage(copiedPage);
+                        
+                        const [copiedPage1] = await mergedPdf.copyPages(srcDoc, [pageIndex]);
+                        mergedPdf.addPage(copiedPage1);
+
+                        const [copiedPage2] = await finalConsolidadoPdf.copyPages(srcDoc, [pageIndex]);
+                        finalConsolidadoPdf.addPage(copiedPage2);
+                        consolidadoHasPages = true;
                     }
 
                     const mergedBytes = await mergedPdf.save();
@@ -452,11 +501,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
+            if (consolidadoHasPages) {
+                const consBytes = await finalConsolidadoPdf.save();
+                const consBlob = new Blob([consBytes], { type: 'application/pdf' });
+                const consFile = new File([consBlob], 'CONSOLIDADO.pdf', { type: 'application/pdf' });
+                
+                const dtC = new DataTransfer();
+                dtC.items.add(consFile);
+                document.getElementById('file_consolidado').files = dtC.files;
+            }
+
             HTMLFormElement.prototype.submit.call(form);
 
         } catch (error) {
             console.error('Error ensamblando:', error);
-            globalError.innerHTML = '<i class="bi bi-x-circle-fill"></i> Error al unir PDFs.';
+            globalError.innerHTML = '<i class="bi bi-x-circle-fill"></i> Error crítico al unir los PDFs. Verifica que no estén dañados.';
             globalError.classList.remove('d-none');
             btnSubmit.disabled = false;
             btnSubmit.innerHTML = '<i class="bi bi-save"></i> Guardar Registro y Procesar Documentos';

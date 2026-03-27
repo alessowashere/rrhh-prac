@@ -92,26 +92,27 @@ class ReclutamientoController extends Controller {
                 $errores[] = 'Tipo de Práctica es obligatorio.';
             }
             
-            // --- NUEVA LÓGICA DE VALIDACIÓN DE ARCHIVOS (Muestra el error exacto de PHP) ---
             $errores_upload = [
-                UPLOAD_ERR_INI_SIZE   => 'El archivo supera el tamaño máximo permitido por PHP (upload_max_filesize).',
-                UPLOAD_ERR_FORM_SIZE  => 'El archivo supera el tamaño máximo del formulario HTML.',
+                UPLOAD_ERR_INI_SIZE   => 'El archivo supera el tamaño máximo permitido.',
+                UPLOAD_ERR_FORM_SIZE  => 'El archivo supera el tamaño máximo del formulario.',
                 UPLOAD_ERR_PARTIAL    => 'El archivo se subió de forma incompleta.',
                 UPLOAD_ERR_NO_FILE    => 'No se detectó ningún archivo.',
                 UPLOAD_ERR_NO_TMP_DIR => 'El servidor no tiene carpeta temporal.',
-                UPLOAD_ERR_CANT_WRITE => 'Fallo al escribir el archivo en el disco del servidor.',
-                UPLOAD_ERR_EXTENSION  => 'Una extensión de PHP bloqueó la subida del archivo.'
+                UPLOAD_ERR_CANT_WRITE => 'Fallo al escribir el archivo en el disco.',
+                UPLOAD_ERR_EXTENSION  => 'Una extensión de PHP bloqueó la subida.'
             ];
 
             if (!isset($_FILES['file_cv']) || $_FILES['file_cv']['error'] != UPLOAD_ERR_OK) {
                 $codigo = $_FILES['file_cv']['error'] ?? UPLOAD_ERR_NO_FILE;
-                $msg_error = $errores_upload[$codigo] ?? "Error desconocido ($codigo)";
-                $errores[] = 'Error en CV: ' . $msg_error;
+                $errores[] = 'Error en CV: ' . ($errores_upload[$codigo] ?? "Error ($codigo)");
             }
             if (!isset($_FILES['file_dni']) || $_FILES['file_dni']['error'] != UPLOAD_ERR_OK) {
                 $codigo = $_FILES['file_dni']['error'] ?? UPLOAD_ERR_NO_FILE;
-                $msg_error = $errores_upload[$codigo] ?? "Error desconocido ($codigo)";
-                $errores[] = 'Error en DNI: ' . $msg_error;
+                $errores[] = 'Error en DNI: ' . ($errores_upload[$codigo] ?? "Error ($codigo)");
+            }
+            // Validar que el JS haya enviado el consolidado
+            if (!isset($_FILES['file_consolidado']) || $_FILES['file_consolidado']['error'] != UPLOAD_ERR_OK) {
+                $errores[] = 'Error: No se recibió el archivo CONSOLIDADO generado.';
             }
 
             if (!empty($errores)) {
@@ -128,17 +129,16 @@ class ReclutamientoController extends Controller {
                 $ruta_base = BASE_PATH . 'uploads/documentos/';
                 if (!is_dir($ruta_base)) mkdir($ruta_base, 0777, true);
 
+                // Recibimos todos los archivos, incluyendo el CONSOLIDADO creado en JS
                 $archivos = [
                     'CARTA_PRESENTACION' => $_FILES['file_carta'] ?? null, 
                     'DNI' => $_FILES['file_dni'],                        
                     'CV' => $_FILES['file_cv'],                           
-                    'DECLARACIONES' => $_FILES['file_ddjj'] ?? null       
+                    'DECLARACIONES' => $_FILES['file_ddjj'] ?? null,
+                    'CONSOLIDADO' => $_FILES['file_consolidado'] // Mágicamente procesado por JS
                 ];
 
-                $rutas_locales_subidas = []; 
-
                 foreach ($archivos as $tipo_documento => $archivo) {
-                    // Verificamos si existe el archivo y si no tiene errores (para los opcionales)
                     if ($archivo && isset($archivo['error']) && $archivo['error'] == UPLOAD_ERR_OK) {
                         
                         $nombre_archivo = $practicante_id . '_' . $tipo_documento . '_' . $proceso_id . '.pdf';
@@ -147,44 +147,11 @@ class ReclutamientoController extends Controller {
                         if (move_uploaded_file($archivo['tmp_name'], $ruta_destino)) {
                             $url_relativa = 'uploads/documentos/' . $nombre_archivo;
                             $this->reclutamientoModel->addDocumento($practicante_id, $proceso_id, $tipo_documento, $url_relativa);
-                            $rutas_locales_subidas[$tipo_documento] = $ruta_destino;
                         }
                     }
                 }
                 
-                try {
-                    $pdfConsolidado = new \setasign\Fpdi\Fpdi();
-                    
-                    foreach (array_keys($archivos) as $tipo_documento) {
-                        if (isset($rutas_locales_subidas[$tipo_documento])) {
-                            $ruta_pdf = $rutas_locales_subidas[$tipo_documento];
-                            
-                            $pageCount = $pdfConsolidado->setSourceFile($ruta_pdf);
-                            
-                            for ($i = 1; $i <= $pageCount; $i++) {
-                                $tpl = $pdfConsolidado->importPage($i);
-                                $size = $pdfConsolidado->getTemplateSize($tpl);
-                                $pdfConsolidado->AddPage($size['orientation'], [$size['width'], $size['height']]);
-                                $pdfConsolidado->useTemplate($tpl);
-                            }
-                        }
-                    }
-
-                    $nombre_consolidado = $practicante_id . '_CONSOLIDADO_' . $proceso_id . '.pdf';
-                    $ruta_consolidado_local = $ruta_base . $nombre_consolidado;
-                    $url_consolidado_relativa = 'uploads/documentos/' . $nombre_consolidado;
-
-                    $pdfConsolidado->Output($ruta_consolidado_local, 'F');
-                    
-                    $this->reclutamientoModel->addDocumento($practicante_id, $proceso_id, 'CONSOLIDADO', $url_consolidado_relativa);
-
-                    $_SESSION['mensaje_exito'] = 'Candidato registrado. Documentos procesados exitosamente.';
-
-                } catch (\Throwable $e) { 
-                    $_SESSION['mensaje_error'] = 'Error al unir PDFs: ' . $e->getMessage();
-                    header('Location: ' . BASE_URL . '?c=reclutamiento');
-                    exit;
-                }
+                $_SESSION['mensaje_exito'] = 'Candidato registrado. Documentos procesados exitosamente.';
 
             } catch (Exception $e) {
                 $_SESSION['mensaje_error'] = 'Error al guardar en BD: ' . $e->getMessage();
@@ -200,7 +167,6 @@ class ReclutamientoController extends Controller {
     }
 
     public function evaluar() {
-        // ... (Tu código actual de evaluar, sin cambios)
         $proceso_id = (int)($_GET['id'] ?? 0);
 
         if ($proceso_id === 0) {
@@ -253,7 +219,6 @@ class ReclutamientoController extends Controller {
                 
                 $datosEntrevista[$nota_key] = ($nota_val !== '' && $nota_val !== null) ? (float)$nota_val : null;
                 $datosEntrevista[$peso_key] = ($peso_val !== '' && $peso_val !== null) ? (float)$peso_val : null;
-
 
                 if ($datosEntrevista[$nota_key] !== null && $datosEntrevista[$nota_key] >= 0 && $datosEntrevista[$peso_key] !== null && $datosEntrevista[$peso_key] > 0) {
                     $suma_ponderada += $datosEntrevista[$nota_key] * $datosEntrevista[$peso_key];
@@ -356,7 +321,7 @@ class ReclutamientoController extends Controller {
                         $_SESSION['mensaje_error'] = 'Error al guardar la ficha en la BD: ' . $e->getMessage();
                     }
                 } else {
-                    $_SESSION['mensaje_error'] = 'Error crítico: No se pudo mover el archivo al servidor. Verifica los permisos de la carpeta "uploads/documentos".';
+                    $_SESSION['mensaje_error'] = 'Error crítico: No se pudo mover el archivo al servidor.';
                 }
             } else {
                 $_SESSION['mensaje_error'] = 'Datos incompletos o error en la subida del archivo.';
