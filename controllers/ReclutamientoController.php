@@ -200,8 +200,9 @@ class ReclutamientoController extends Controller {
             
             $datosEntrevista = [
                 'proceso_id' => $proceso_id,
-                'comentarios' => trim($_POST['comentarios_adicionales']) ?? '',
-                'fecha_entrevista' => trim($_POST['fecha_entrevista']) ?? date('Y-m-d')
+                // Usamos null coalescing (??) para evitar errores si el campo no se envía
+                'comentarios' => trim($_POST['comentarios_adicionales'] ?? ''),
+                'fecha_entrevista' => trim($_POST['fecha_entrevista'] ?? date('Y-m-d'))
             ];
 
             $suma_ponderada = 0;
@@ -212,14 +213,16 @@ class ReclutamientoController extends Controller {
                 $nota_key = 'campo_' . $i . '_nota';
                 $peso_key = 'campo_' . $i . '_peso'; 
 
-                $datosEntrevista[$nombre_key] = trim($_POST[$nombre_key]) ?? 'Criterio ' . $i;
+                // Si el campo viene vacío o no viene (porque está disabled), le asignamos null
+                $datosEntrevista[$nombre_key] = trim($_POST[$nombre_key] ?? '') ?: null;
                 
-                $nota_val = $_POST[$nota_key];
-                $peso_val = $_POST[$peso_key];
+                $nota_val = $_POST[$nota_key] ?? null;
+                $peso_val = $_POST[$peso_key] ?? null;
                 
                 $datosEntrevista[$nota_key] = ($nota_val !== '' && $nota_val !== null) ? (float)$nota_val : null;
                 $datosEntrevista[$peso_key] = ($peso_val !== '' && $peso_val !== null) ? (float)$peso_val : null;
 
+                // Solo sumamos si hay nota y peso válidos
                 if ($datosEntrevista[$nota_key] !== null && $datosEntrevista[$nota_key] >= 0 && $datosEntrevista[$peso_key] !== null && $datosEntrevista[$peso_key] > 0) {
                     $suma_ponderada += $datosEntrevista[$nota_key] * $datosEntrevista[$peso_key];
                     $suma_pesos_total += $datosEntrevista[$peso_key];
@@ -230,6 +233,7 @@ class ReclutamientoController extends Controller {
             $datosEntrevista['puntuacion_final'] = round($promedio, 2);
 
             try {
+                // Ahora sí se ejecutarán todas las actualizaciones sin detenerse
                 $this->reclutamientoModel->actualizarEntrevista($datosEntrevista);
                 $this->reclutamientoModel->actualizarFechaEntrevista($proceso_id, $datosEntrevista['fecha_entrevista']);
                 $this->reclutamientoModel->cambiarEstadoProceso($proceso_id, 'Evaluado');

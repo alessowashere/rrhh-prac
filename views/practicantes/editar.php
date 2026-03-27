@@ -19,51 +19,50 @@ if (isset($_SESSION['mensaje_error'])) {
 }
 ?>
 
-<div class="card">
+<div class="card shadow-sm">
     <div class="card-body">
         <form action="index.php?c=practicantes&m=actualizar" method="POST" class="needs-validation" novalidate>
             <input type="hidden" name="practicante_id" value="<?php echo $p['practicante_id']; ?>">
             
-            <h5 class="mb-3">Datos Personales</h5>
+            <h5 class="mb-3 text-primary border-bottom pb-2">Datos Personales</h5>
             <div class="row g-3">
                 <div class="col-sm-4">
                     <label for="dni" class="form-label">DNI <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="dni" name="dni" required value="<?php echo htmlspecialchars($p['dni']); ?>">
+                    <input type="text" class="form-control" id="dni" name="dni" required value="<?php echo htmlspecialchars($p['dni'] ?? ''); ?>">
                 </div>
                 <div class="col-sm-4">
                     <label for="nombres" class="form-label">Nombres <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="nombres" name="nombres" required value="<?php echo htmlspecialchars($p['nombres']); ?>">
+                    <input type="text" class="form-control" id="nombres" name="nombres" required value="<?php echo htmlspecialchars($p['nombres'] ?? ''); ?>">
                 </div>
                 <div class="col-sm-4">
                     <label for="apellidos" class="form-label">Apellidos <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="apellidos" name="apellidos" required value="<?php echo htmlspecialchars($p['apellidos']); ?>">
+                    <input type="text" class="form-control" id="apellidos" name="apellidos" required value="<?php echo htmlspecialchars($p['apellidos'] ?? ''); ?>">
                 </div>
 
                 <div class="col-sm-4">
                     <label for="fecha_nacimiento" class="form-label">Fecha de Nacimiento</label>
-                    <input type="date" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" value="<?php echo htmlspecialchars($p['fecha_nacimiento']); ?>">
+                    <input type="date" class="form-control" id="fecha_nacimiento" name="fecha_nacimiento" value="<?php echo htmlspecialchars($p['fecha_nacimiento'] ?? ''); ?>">
                 </div>
                 <div class="col-sm-4">
                     <label for="email" class="form-label">Email</label>
-                    <input type="email" class="form-control" id="email" name="email" 
-                        value="<?php echo htmlspecialchars($data['practicante']['email'] ?? ''); ?>">
+                    <input type="email" class="form-control" id="email" name="email" value="<?php echo htmlspecialchars($p['email'] ?? ''); ?>">
                 </div>
                 <div class="col-sm-4">
                     <label for="telefono" class="form-label">Teléfono</label>
-                    <input type="tel" class="form-control" id="telefono" name="telefono" value="<?php echo htmlspecialchars($p['telefono']); ?>">
+                    <input type="tel" class="form-control" id="telefono" name="telefono" value="<?php echo htmlspecialchars($p['telefono'] ?? ''); ?>">
                 </div>
             </div>
 
             <hr class="my-4">
 
-            <h5 class="mb-3">Datos Académicos y Estado</h5>
+            <h5 class="mb-3 text-primary border-bottom pb-2">Datos Académicos y Estado</h5>
             <div class="row g-3">
                  <div class="col-sm-6">
                     <label for="universidad_id" class="form-label">Universidad <span class="text-danger">*</span></label>
                     <select class="form-select" id="universidad_id" name="universidad_id" required>
                         <option value="">Seleccione...</option>
                         <?php foreach ($data['universidades'] as $uni): ?>
-                            <option value="<?php echo $uni['universidad_id']; ?>" <?php echo ($uni['universidad_id'] == $p['universidad_id']) ? 'selected' : ''; ?>>
+                            <option value="<?php echo $uni['universidad_id']; ?>" <?php echo (isset($p['universidad_id']) && $uni['universidad_id'] == $p['universidad_id']) ? 'selected' : ''; ?>>
                                 <?php echo htmlspecialchars($uni['nombre']); ?>
                             </option>
                         <?php endforeach; ?>
@@ -71,15 +70,15 @@ if (isset($_SESSION['mensaje_error'])) {
                 </div>
                 
                 <div class="col-sm-6">
-                    <label for="escuela_id" class="form-label">Escuela Profesional <span class="text-danger">*</span></label>
-                    <select class="form-select" id="escuela_id" name="escuela_id" required>
-                        <option value="<?php echo htmlspecialchars($p['escuela_profesional_id']); ?>">Cargando...</option>
+                    <label for="escuela_profesional_id" class="form-label">Escuela Profesional <span class="text-danger">*</span></label>
+                    <select class="form-select" id="escuela_profesional_id" name="escuela_profesional_id" required>
+                        <option value="">Cargando...</option>
                     </select>
                 </div>
 
                 <div class="col-sm-4">
                     <label for="promedio_general" class="form-label">Promedio General</label>
-                    <input type="number" class="form-control" id="promedio_general" name="promedio_general" step="0.001" min="0" max="20" value="<?php echo htmlspecialchars($p['promedio_general']); ?>">
+                    <input type="number" class="form-control" id="promedio_general" name="promedio_general" step="0.001" min="0" max="20" value="<?php echo htmlspecialchars($p['promedio_general'] ?? ''); ?>">
                 </div>
                 
                 <div class="col-sm-4">
@@ -93,18 +92,21 @@ if (isset($_SESSION['mensaje_error'])) {
 
             <hr class="my-4">
 
-            <button class="btn btn-primary btn-lg" type="submit">Actualizar Practicante</button>
+            <button class="btn btn-primary btn-lg w-100 shadow" type="submit">
+                <i class="bi bi-save"></i> Actualizar Datos del Practicante
+            </button>
         </form>
     </div>
 </div>
 
 <script>
-    const todasLasEscuelas = <?php echo $data['escuelas_json']; ?>;
-    const idUniversidadSeleccionada = "<?php echo $p['universidad_id']; ?>";
-    const idEscuelaSeleccionada = "<?php echo $p['escuela_profesional_id']; ?>";
+    // CORRECCIÓN: Convertimos el arreglo PHP directamente a JSON aquí para evitar errores si no se manda desde el controlador
+    const todasLasEscuelas = <?php echo json_encode($data['escuelas'] ?? []); ?>;
+    const idUniversidadSeleccionada = "<?php echo $p['universidad_id'] ?? ''; ?>";
+    const idEscuelaSeleccionada = "<?php echo $p['escuela_profesional_id'] ?? ''; ?>";
 
     const selectUniversidad = document.getElementById('universidad_id');
-    const selectEscuela = document.getElementById('escuela_id');
+    const selectEscuela = document.getElementById('escuela_profesional_id'); // Actualizado el ID
 
     function cargarEscuelas(universidadId) {
         selectEscuela.innerHTML = '<option value="">Cargando...</option>';
@@ -127,11 +129,11 @@ if (isset($_SESSION['mensaje_error'])) {
                 });
                 selectEscuela.disabled = false;
             } else {
-                selectEscuela.innerHTML = '<option value="">No hay escuelas</option>';
+                selectEscuela.innerHTML = '<option value="">No hay escuelas en esta universidad</option>';
                 selectEscuela.disabled = true;
             }
         } else {
-            selectEscuela.innerHTML = '<option value="">Seleccione universidad...</option>';
+            selectEscuela.innerHTML = '<option value="">Primero seleccione universidad...</option>';
             selectEscuela.disabled = true;
         }
     }

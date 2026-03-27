@@ -5,10 +5,8 @@ $documentos = $data['documentos'] ?? [];
 
 // --- Buscar Documentos ---
 $url_pdf_principal = '';
-// $url_ficha_firmada = ''; // <-- ELIMINADO DE AQUÍ
 foreach ($documentos as $doc) {
     if ($doc['tipo_documento'] == 'CONSOLIDADO') { $url_pdf_principal = $doc['url_archivo']; }
-    // if ($doc['tipo_documento'] == 'FICHA_CALIFICACION') { $url_ficha_firmada = $doc['url_archivo']; } // <-- ELIMINADO DE AQUÍ
 }
 // Fallback a CV
 if (empty($url_pdf_principal)) {
@@ -271,7 +269,7 @@ if (isset($_SESSION['mensaje_error'])) {
                                         $peso_val = $proceso['campo_' . $i . '_peso'] ?? '';
                                         $nota_val = $proceso['campo_' . $i . '_nota'] ?? '';
                                     ?>
-                                    <tr class="criterio-row" id="criterio-<?php echo $i; ?>">
+                                    <tr class="criterio-row" id="criterio-print-<?php echo $i; ?>">
                                         <td><span class="print-value"><?php echo htmlspecialchars($nombre_val); ?></span></td>
                                         <td><span class="print-value"><?php echo htmlspecialchars($peso_val); ?></span></td>
                                         <td><span class="print-value"><?php echo htmlspecialchars($nota_val); ?></span></td>
@@ -290,7 +288,7 @@ if (isset($_SESSION['mensaje_error'])) {
                                         <th scope="col">Nota (0-20)</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody id="tbody-criterios">
                                 <?php for ($i = 1; $i <= 10; $i++): 
                                     $nombre_key = 'campo_' . $i . '_nombre';
                                     $nota_key = 'campo_' . $i . '_nota';
@@ -309,7 +307,7 @@ if (isset($_SESSION['mensaje_error'])) {
                                     <td>
                                         <input type="number" class="form-control form-control-sm criterio-peso" 
                                                id="<?php echo $peso_key; ?>" name="<?php echo $peso_key; ?>" 
-                                               placeholder="%" step="1" min="0" max="100"
+                                               placeholder="%" step="0.1" min="0" max="100"
                                                value="<?php echo htmlspecialchars($peso_val); ?>">
                                     </td>
                                     <td>
@@ -395,13 +393,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const promedioGeneralPHP = <?php echo $promedio_general_val; ?>;
     
     // --- Selectores de Inputs ---
-    const todasLasFilas = document.querySelectorAll('.criterio-row'); // Filas <tr>
+    const todasLasFilas = document.querySelectorAll('.criterio-row'); // Filas <tr> (Son 20 en total: 10 print + 10 form)
+    const formFilas = document.querySelectorAll('#tbody-criterios .criterio-row'); // Solo las 10 del formulario
     const inputNombres = document.querySelectorAll('.criterio-nombre');
     const inputPesos = document.querySelectorAll('.criterio-peso');
     const inputNotas = document.querySelectorAll('.criterio-nota');
     
     /**
-     * Llena el formulario con un perfil (PRE/PRO) - 6 CAMPOS
+     * Llena el formulario con un perfil (PRE/PRO) - 6 CAMPOS (Promedio + 5 del perfil)
      */
     function aplicarPerfil(perfil, promedio) {
         
@@ -409,42 +408,38 @@ document.addEventListener('DOMContentLoaded', function() {
         if (inputNombres[0]) inputNombres[0].value = 'PROMEDIO (REGISTRO)';
         if (inputPesos[0]) inputPesos[0].value = 50;
         if (inputNotas[0]) inputNotas[0].value = (inputNotas[0].value && inputNotas[0].value != '0') ? inputNotas[0].value : promedio;
-        if (todasLasFilas[0]) todasLasFilas[0].style.display = 'table-row'; // Asegurar que sea visible
-        // Bloquear campos del Promedio
-        if (inputNombres[0]) inputNombres[0].readOnly = true;
-        if (inputPesos[0]) inputPesos[0].readOnly = true;
-        if (inputNotas[0]) inputNotas[0].readOnly = true;
+        
+        // Activar Criterio 1
+        if (formFilas[0]) formFilas[0].classList.remove('d-none');
+        if (inputNombres[0]) { inputNombres[0].readOnly = true; inputNombres[0].disabled = false; }
+        if (inputPesos[0]) { inputPesos[0].readOnly = true; inputPesos[0].disabled = false; }
+        if (inputNotas[0]) { inputNotas[0].readOnly = true; inputNotas[0].disabled = false; }
 
 
-        // 2. Llenar los campos del perfil (del 2 al 6)
+        // 2. Llenar los campos del perfil (del índice 1 al 5)
         perfil.forEach((criterio, index) => {
             let i = index + 1; // Índice 1 a 5 (Filas 2 a 6)
             
             if (inputNombres[i]) inputNombres[i].value = criterio.nombre;
             if (inputPesos[i]) inputPesos[i].value = criterio.peso;
-            if (inputNotas[i]) inputNotas[i].value = inputNotas[i].value || ''; 
-            if (todasLasFilas[i]) todasLasFilas[i].style.display = 'table-row'; // Asegurar que sean visibles
+            
+            // Activar Criterio
+            if (formFilas[i]) formFilas[i].classList.remove('d-none');
+            
             // Bloquear Nombre y Peso, desbloquear Nota
-            if (inputNombres[i]) inputNombres[i].readOnly = true;
-            if (inputPesos[i]) inputPesos[i].readOnly = true;
-            if (inputNotas[i]) inputNotas[i].readOnly = false;
+            if (inputNombres[i]) { inputNombres[i].readOnly = true; inputNombres[i].disabled = false; }
+            if (inputPesos[i]) { inputPesos[i].readOnly = true; inputPesos[i].disabled = false; }
+            if (inputNotas[i]) { inputNotas[i].readOnly = false; inputNotas[i].disabled = false; }
         });
         
-        // 3. OCULTAR y LIMPIAR filas restantes (del 7 al 10)
-        // REVISADO: Bucle explícito para índices 6, 7, 8, 9
+        // 3. DESACTIVAR Y OCULTAR filas restantes (del índice 6 al 9)
         for (let i = 6; i < 10; i++) { 
-            if (todasLasFilas[i]) {
-                // INTENTO MÁS FUERTE DE OCULTAR:
-                todasLasFilas[i].style.display = 'none'; 
-                todasLasFilas[i].style.visibility = 'collapse'; // Específico para tablas
-                todasLasFilas[i].style.height = '0px';          // Sin altura
-                todasLasFilas[i].style.padding = '0';           // Sin relleno
-                todasLasFilas[i].style.border = 'none';         // Sin borde
-            }
-            // Limpiar inputs igualmente
-            if(inputNombres[i]) inputNombres[i].value = ''; 
-            if(inputPesos[i]) inputPesos[i].value = ''; 
-            if(inputNotas[i]) inputNotas[i].value = ''; 
+            if (formFilas[i]) formFilas[i].classList.add('d-none');
+            
+            // Limpiar y DESHABILITAR (Para que JS no las lea y PHP no las reciba)
+            if(inputNombres[i]) { inputNombres[i].value = ''; inputNombres[i].disabled = true; }
+            if(inputPesos[i]) { inputPesos[i].value = ''; inputPesos[i].disabled = true; }
+            if(inputNotas[i]) { inputNotas[i].value = ''; inputNotas[i].disabled = true; }
         }
     }
 
@@ -457,26 +452,30 @@ document.addEventListener('DOMContentLoaded', function() {
         if (inputNombres[0]) inputNombres[0].value = 'PROMEDIO (REGISTRO)';
         if (inputPesos[0]) inputPesos[0].value = (inputPesos[0].value == '50' || !inputPesos[0].value) ? 50 : inputPesos[0].value;
         if (inputNotas[0]) inputNotas[0].value = (inputNotas[0].value && inputNotas[0].value != '0') ? inputNotas[0].value : promedioGeneralPHP;
-        // Bloquear Nombre y Nota, Desbloquear Peso
-        if (inputNombres[0]) inputNombres[0].readOnly = true;
-        if (inputPesos[0]) inputPesos[0].readOnly = false; // Desbloqueado en Personalizado
-        if (inputNotas[0]) inputNotas[0].readOnly = true; 
+        
+        // Activar y Bloquear Nombre/Nota, Desbloquear Peso
+        if (formFilas[0]) formFilas[0].classList.remove('d-none');
+        if (inputNombres[0]) { inputNombres[0].readOnly = true; inputNombres[0].disabled = false; }
+        if (inputPesos[0]) { inputPesos[0].readOnly = false; inputPesos[0].disabled = false; } 
+        if (inputNotas[0]) { inputNotas[0].readOnly = true; inputNotas[0].disabled = false; } 
 
-        // 2. Mostrar y desbloquear del 1 al 10
-        for (let i = 0; i < 10; i++) {
-            if (todasLasFilas[i]) {
-                todasLasFilas[i].style.display = 'table-row'; // Asegurar que todas sean visibles
-            }
-            // Desbloquear Nombre, Peso y Nota (excepto las del Promedio ya definidas)
-            if (inputNombres[i] && i > 0) { 
+        // 2. Mostrar y desbloquear del índice 1 al 9
+        for (let i = 1; i < 10; i++) {
+            if (formFilas[i]) formFilas[i].classList.remove('d-none');
+            
+            // Activar y Desbloquear Nombre, Peso y Nota
+            if (inputNombres[i]) { 
                 if (!inputNombres[i].value) inputNombres[i].value = `Criterio ${i+1}`;
                 inputNombres[i].readOnly = false;
+                inputNombres[i].disabled = false;
             }
-            if (inputPesos[i]) { // Incluye el peso del promedio
+            if (inputPesos[i]) { 
                  inputPesos[i].readOnly = false;
+                 inputPesos[i].disabled = false;
             }
-            if (inputNotas[i] && i > 0) { 
+            if (inputNotas[i]) { 
                 inputNotas[i].readOnly = false;
+                inputNotas[i].disabled = false;
             }
         }
     }
@@ -489,8 +488,8 @@ document.addEventListener('DOMContentLoaded', function() {
         let sumaPesosTotal = 0;
         
         for (let i = 0; i < 10; i++) {
-            // REVISADO: Comprobar si la fila está visible antes de calcular
-            if (todasLasFilas[i] && todasLasFilas[i].style.display !== 'none') {
+            // SOLO contar si el input NO está desactivado
+            if (inputNotas[i] && !inputNotas[i].disabled) {
                 let nota = parseFloat(inputNotas[i].value) || 0;
                 let peso = parseFloat(inputPesos[i].value) || 0;
                 
@@ -507,8 +506,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const totalPesoSpan = document.getElementById('total-peso');
         const pesoErrorDiv = document.getElementById('peso-error');
-        totalPesoSpan.textContent = sumaPesosTotal;
+        totalPesoSpan.textContent = sumaPesosTotal.toFixed(1); // Un decimal para mejor lectura
 
+        // Validar que sume exactamente 100
         if (sumaPesosTotal > 0 && Math.abs(sumaPesosTotal - 100) > 0.01) { 
             totalPesoSpan.classList.add('text-danger');
             pesoErrorDiv.classList.remove('d-none');
@@ -518,48 +518,52 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // --- Controladores de Botones Activos ---
+    const botonesPerfil = document.querySelectorAll('.btn-group .btn');
+    function setBotonActivo(botonActivo) {
+        botonesPerfil.forEach(btn => btn.classList.remove('active'));
+        botonActivo.classList.add('active');
+    }
+
     // --- Event Listeners ---
-    document.getElementById('btn-perfil-pre').addEventListener('click', () => {
+    document.getElementById('btn-perfil-pre').addEventListener('click', function() {
         aplicarPerfil(perfil_pre, promedioGeneralPHP);
         calcularPuntaje();
+        setBotonActivo(this);
     });
-    document.getElementById('btn-perfil-pro').addEventListener('click', () => {
+    document.getElementById('btn-perfil-pro').addEventListener('click', function() {
         aplicarPerfil(perfil_pro, promedioGeneralPHP);
         calcularPuntaje();
+        setBotonActivo(this);
     });
-    document.getElementById('btn-perfil-custom').addEventListener('click', () => {
+    document.getElementById('btn-perfil-custom').addEventListener('click', function() {
         aplicarPerfilPersonalizado();
         calcularPuntaje();
+        setBotonActivo(this);
     });
+    
     inputNotas.forEach(input => input.addEventListener('input', calcularPuntaje));
     inputPesos.forEach(input => input.addEventListener('input', calcularPuntaje));
 
     // --- Carga Inicial ---
     const primerCriterio = document.getElementById('campo_1_nombre').value;
     
-    // REVISADO: Lógica de carga simplificada
-    let esPerfilNuevo = primerCriterio === 'PROMEDIO (REGISTRO)';
+    let esPerfilNuevo = primerCriterio === 'PROMEDIO (REGISTRO)' || primerCriterio === '';
     let camposConNombre = 0;
-    if (esPerfilNuevo) {
-        for (let i = 0; i < 10; i++) {
-            if (inputNombres[i] && inputNombres[i].value) {
-                camposConNombre++;
-            }
+    
+    for (let i = 0; i < 10; i++) {
+        if (inputNombres[i] && inputNombres[i].value && inputNombres[i].value.trim() !== '') {
+            camposConNombre++;
         }
     }
 
-    if (!esPerfilNuevo) { // Si es vacío o antiguo, forzar perfil por defecto (6 campos)
-         if (tipoPracticaPHP === 'PREPROFESIONAL') {
-            aplicarPerfil(perfil_pre, promedioGeneralPHP);
-            document.getElementById('btn-perfil-pre').classList.add('active');
-        } else { // Profesional o sin tipo definido
-            aplicarPerfil(perfil_pro, promedioGeneralPHP);
-            document.getElementById('btn-perfil-pro').classList.add('active');
-        }
-    } else if (camposConNombre > 6) { // Si es nuevo y tiene más de 6 campos, es personalizado
+    // Lógica para determinar qué perfil cargar al iniciar
+    if (camposConNombre > 6) { 
+        // Si hay más de 6 campos guardados, es personalizado
         aplicarPerfilPersonalizado();
         document.getElementById('btn-perfil-custom').classList.add('active');
-    } else { // Si es nuevo y tiene 6 o menos, es perfil estándar (6 campos)
+    } else if (camposConNombre === 6 || esPerfilNuevo) { 
+        // Si tiene exactamente 6 (Promedio + 5) o es nuevo
         if (tipoPracticaPHP === 'PREPROFESIONAL') {
             aplicarPerfil(perfil_pre, promedioGeneralPHP);
             document.getElementById('btn-perfil-pre').classList.add('active');
@@ -567,8 +571,21 @@ document.addEventListener('DOMContentLoaded', function() {
             aplicarPerfil(perfil_pro, promedioGeneralPHP);
             document.getElementById('btn-perfil-pro').classList.add('active');
         }
+    } else {
+        // En cualquier otro caso raro, abrimos todo para que el usuario arregle
+        aplicarPerfilPersonalizado();
+        document.getElementById('btn-perfil-custom').classList.add('active');
     }
     
+    // Ocultar las filas de impresión vacías para que el PDF salga limpio
+    for(let i = 1; i <= 10; i++) {
+        let nombrePrint = document.querySelector(`#criterio-print-${i} td:nth-child(1) span`).textContent;
+        if(nombrePrint.trim() === '') {
+            let filaPrint = document.getElementById(`criterio-print-${i}`);
+            if(filaPrint) filaPrint.style.display = 'none';
+        }
+    }
+
     // Calcular puntaje inicial
     calcularPuntaje();
 });

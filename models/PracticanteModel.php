@@ -97,7 +97,7 @@ class PracticanteModel extends Model {
     }
     public function getPracticantePorId($id) {
         // 1. Datos básicos y escuela
-        $sql = "SELECT p.*, ep.nombre as escuela_nombre 
+        $sql = "SELECT p.*, ep.nombre as escuela_nombre, ep.universidad_id 
                 FROM Practicantes p
                 LEFT JOIN EscuelasProfesionales ep ON p.escuela_profesional_id = ep.escuela_id
                 WHERE p.practicante_id = ?";

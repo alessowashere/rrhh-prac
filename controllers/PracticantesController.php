@@ -103,8 +103,21 @@ class PracticantesController extends Controller {
         $this->view('practicantes/importar', ['titulo' => 'Importación Masiva']);
     }
 
-    public function editar($id) {
+    public function editar() {
+        // 1. Forzamos a que el ID sea un número entero desde el método GET
+        $id = (int)($_GET['id'] ?? 0);
+
+        if ($id === 0) {
+            header('Location: ' . BASE_URL . '?c=practicantes');
+            exit;
+        }
+
         $practicante = $this->practicanteModel->getPracticantePorId($id);
+
+        if (!$practicante) {
+            header('Location: ' . BASE_URL . '?c=practicantes');
+            exit;
+        }
 
         // BLOQUEO SEGURIDAD: Si está cesado, no permitir edición
         if ($practicante['estado_general'] === 'Cesado') {
@@ -113,11 +126,16 @@ class PracticantesController extends Controller {
             exit;
         }
 
+        // 2. Usamos el método correcto que sí existe en tu modelo
+        $catalogos = $this->practicanteModel->getCatalogosParaFormulario();
+
         $data = [
             'titulo' => 'Editar Practicante',
             'practicante' => $practicante,
-            'escuelas' => $this->practicanteModel->getEscuelas()
+            'escuelas' => $catalogos['escuelas'], 
+            'universidades' => $catalogos['universidades'] // Opcional, por si tu vista lo usa
         ];
+        
         $this->view('practicantes/editar', $data);
     }
 
