@@ -182,7 +182,8 @@ if (isset($_SESSION['mensaje_error'])) {
 </div>
 
 <div class="modal fade" id="modalVistaPreviaPDF" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable"> <div class="modal-content">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
       <div class="modal-header bg-dark text-white py-2">
         <h5 class="modal-title fs-5"><i class="bi bi-file-earmark-pdf text-danger"></i> Vista Ampliada</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -209,7 +210,6 @@ if (isset($_SESSION['mensaje_error'])) {
     .pdf-thumb-canvas { width: 100%; height: 110px; object-fit: cover; background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; margin-top: 15px; margin-bottom: 5px; }
     .sortable-ghost { opacity: 0.5; background-color: #e9ecef; border: 2px dashed #6c757d; }
     
-    /* Estilos para los botoncitos flotantes en la miniatura */
     .btn-float-left { position: absolute; top: 4px; left: 4px; z-index: 10; padding: 2px 6px; font-size: 0.75rem; }
     .btn-float-right { position: absolute; top: 4px; right: 4px; z-index: 10; padding: 2px 6px; font-size: 0.75rem; }
 </style>
@@ -257,8 +257,8 @@ document.addEventListener('DOMContentLoaded', function() {
         file_ddjj: document.getElementById('caja-ddjj')
     };
 
-    let sourcePdfs = {};   // Guarda el doc para PDF-Lib (Ensamblado final)
-    let pdfJsDocs = {};    // Guarda el doc para PDF.js (Vista previa HD y miniaturas)
+    let sourcePdfs = {};   
+    let pdfJsDocs = {};    
 
     Object.values(boxes).forEach(box => {
         new Sortable(box, { group: 'shared-pages', animation: 150, ghostClass: 'sortable-ghost',
@@ -288,20 +288,24 @@ document.addEventListener('DOMContentLoaded', function() {
             if (file.type !== 'application/pdf') continue;
 
             try {
-                // SOLUCIÓN A LA PANTALLA BLANCA: Extraer bytes directos en vez de crear una URL
-                const arrayBuffer = await file.arrayBuffer();
-                const pdfData = new Uint8Array(arrayBuffer);
                 const fileId = 'doc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
 
-                // 1. Cargar en PDF-Lib (Para cuando hagamos Submit y se una todo)
-                const pdfLibDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-                sourcePdfs[fileId] = pdfLibDoc;
+                // 1. PDF-LIB: Carga desde ArrayBuffer (Ligero y perfecto para el envío)
+                const arrayBuffer = await file.arrayBuffer();
+                sourcePdfs[fileId] = await PDFLib.PDFDocument.load(arrayBuffer);
 
-                // 2. Cargar en PDF.js (Para generar Canvas)
-                const pdfJsDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
-                pdfJsDocs[fileId] = pdfJsDoc; // Guardamos para la vista de la lupa
+                // 2. PDF.JS: Carga desde Base64 (Evita el conflicto de memoria y renderiza sin ruido/blanco)
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = error => reject(error);
+                    reader.readAsDataURL(file);
+                });
+                
+                const pdfJsDoc = await pdfjsLib.getDocument(dataUrl).promise;
+                pdfJsDocs[fileId] = pdfJsDoc;
 
-                const numPages = pdfLibDoc.getPageCount();
+                const numPages = sourcePdfs[fileId].getPageCount();
 
                 for (let i = 0; i < numPages; i++) {
                     const pageItem = document.createElement('div');
@@ -309,21 +313,25 @@ document.addEventListener('DOMContentLoaded', function() {
                     pageItem.dataset.fileId = fileId;
                     pageItem.dataset.pageIndex = i;
                     
-                    // HTML Interno (Botón Zoom Izquierda, Botón Borrar Derecha)
                     pageItem.innerHTML = `
                         <button type="button" class="btn btn-primary btn-float-left rounded-circle shadow-sm btn-ampliar" title="Ampliar Vista"><i class="bi bi-zoom-in"></i></button>
                         <button type="button" class="btn btn-danger btn-float-right rounded-circle shadow-sm btn-quitar" title="Eliminar Hoja"><i class="bi bi-x-lg"></i></button>
                     `;
                     
-                    // Crear el Canvas de miniatura
                     const canvas = document.createElement('canvas');
                     canvas.className = 'pdf-thumb-canvas';
                     
                     try {
                         const page = await pdfJsDoc.getPage(i + 1);
-                        const viewport = page.getViewport({ scale: 0.4 }); // Escala bajita para miniatura rápida
+                        const viewport = page.getViewport({ scale: 1 }); 
+                        
                         canvas.width = viewport.width; 
                         canvas.height = viewport.height;
+                        
+                        // Respetar dimensiones CSS
+                        canvas.style.width = "100%";
+                        canvas.style.height = "110px";
+
                         const ctx = canvas.getContext('2d');
                         await page.render({ canvasContext: ctx, viewport: viewport }).promise;
                     } catch (renderError) {
@@ -333,14 +341,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     pageItem.appendChild(canvas);
                     pageItem.innerHTML += `<div class="w-100 text-center"><div class="fw-bold text-dark" style="font-size:0.75rem;">Pág. ${i + 1}</div></div>`;
 
-                    // Lógica del botón Eliminar
                     pageItem.querySelector('.btn-quitar').addEventListener('click', (e) => {
                         e.stopPropagation(); pageItem.remove();
                     });
 
-                    // Lógica del botón Ampliar (Pop-up)
                     pageItem.querySelector('.btn-ampliar').addEventListener('click', (e) => {
-                        e.stopPropagation(); // Evitar que inicie el arrastre
+                        e.stopPropagation(); 
                         abrirVistaPrevia(fileId, i + 1);
                     });
 
@@ -368,7 +374,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const spinner = document.getElementById('modal-spinner');
         const ctx = canvas.getContext('2d');
         
-        // Resetear visualmente
         canvas.classList.add('d-none');
         spinner.classList.remove('d-none');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -377,14 +382,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const pdfJsDoc = pdfJsDocs[fileId];
             const page = await pdfJsDoc.getPage(numeroPagina);
             
-            // Escala grande para que se pueda leer todo el texto
             const viewport = page.getViewport({ scale: 1.8 }); 
             canvas.width = viewport.width;
             canvas.height = viewport.height;
             
             await page.render({ canvasContext: ctx, viewport: viewport }).promise;
             
-            // Ocultar spinner y mostrar imagen
             spinner.classList.add('d-none');
             canvas.classList.remove('d-none');
             
