@@ -200,8 +200,7 @@ class ReclutamientoController extends Controller {
             
             $datosEntrevista = [
                 'proceso_id' => $proceso_id,
-                // Usamos null coalescing (??) para evitar errores si el campo no se envía
-                'comentarios' => trim($_POST['comentarios_adicionales'] ?? ''),
+                'comentarios' => trim($_POST['comentarios_adicionales'] ?? ''), // Cambiado para que el modelo lo reconozca
                 'fecha_entrevista' => trim($_POST['fecha_entrevista'] ?? date('Y-m-d'))
             ];
 
