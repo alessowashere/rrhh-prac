@@ -96,7 +96,7 @@ class PracticanteModel extends Model {
         return $stmt->execute([$data['dni'], $data['nombres'], $data['apellidos'], $data['estado'], "%".$data['escuela']."%"]);
     }
     public function getPracticantePorId($id) {
-    // 1. Datos básicos y escuela
+        // 1. Datos básicos y escuela
         $sql = "SELECT p.*, ep.nombre as escuela_nombre 
                 FROM Practicantes p
                 LEFT JOIN EscuelasProfesionales ep ON p.escuela_profesional_id = ep.escuela_id
@@ -114,7 +114,7 @@ class PracticanteModel extends Model {
                     WHERE pc.convenio_id IN (SELECT convenio_id FROM Convenios WHERE practicante_id = ?)
                     ORDER BY pc.fecha_inicio DESC";
             $stmtPer = $this->db->prepare($sqlPer);
-            $stmtPer.execute([$id]);
+            $stmtPer->execute([$id]); // CORREGIDO: flecha en lugar de punto
             $practicante['historial_periodos'] = $stmtPer->fetchAll(PDO::FETCH_ASSOC);
 
             // 3. Traer TODAS las adendas (Ampliaciones, Reubicaciones y el CESE con su ARCHIVO)
@@ -123,13 +123,13 @@ class PracticanteModel extends Model {
                         WHERE c.practicante_id = ?
                         ORDER BY a.fecha_adenda DESC";
             $stmtAdendas = $this->db->prepare($sqlAdendas);
-            $stmtAdendas.execute([$id]);
+            $stmtAdendas->execute([$id]); // CORREGIDO: flecha en lugar de punto
             $practicante['adendas'] = $stmtAdendas->fetchAll(PDO::FETCH_ASSOC);
             
             // 4. Buscar el archivo del convenio original
             $sqlConv = "SELECT estado_firma, documento_convenio_url FROM Convenios WHERE practicante_id = ? LIMIT 1";
             $stmtConv = $this->db->prepare($sqlConv);
-            $stmtConv.execute([$id]);
+            $stmtConv->execute([$id]); // CORREGIDO: flecha en lugar de punto
             $practicante['convenio_principal'] = $stmtConv->fetch(PDO::FETCH_ASSOC);
         }
         

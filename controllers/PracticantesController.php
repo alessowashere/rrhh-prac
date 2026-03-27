@@ -28,13 +28,19 @@ class PracticantesController extends Controller {
             exit; 
         }
         
-        $info = $this->practicanteModel->getInfoCompleta($id);
-        if (!$info['detalle']) {
+        // CAMBIO AQUÍ: Llamamos a getPracticantePorId en lugar de getInfoCompleta
+        $practicante = $this->practicanteModel->getPracticantePorId($id);
+        
+        if (!$practicante) {
             header('Location: ' . BASE_URL . '?c=practicantes');
             exit;
         }
 
-        $this->view('practicantes/ver', ['titulo' => 'Perfil del Practicante', 'info' => $info]);
+        // CAMBIO AQUÍ: Pasamos 'practicante' en el array, no 'info'
+        $this->view('practicantes/ver', [
+            'titulo' => 'Perfil del Practicante', 
+            'practicante' => $practicante
+        ]);
     }
 
     /**
