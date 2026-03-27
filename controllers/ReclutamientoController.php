@@ -92,15 +92,30 @@ class ReclutamientoController extends Controller {
                 $errores[] = 'Tipo de Práctica es obligatorio.';
             }
             
+            // --- NUEVA LÓGICA DE VALIDACIÓN DE ARCHIVOS (Muestra el error exacto de PHP) ---
+            $errores_upload = [
+                UPLOAD_ERR_INI_SIZE   => 'El archivo supera el tamaño máximo permitido por PHP (upload_max_filesize).',
+                UPLOAD_ERR_FORM_SIZE  => 'El archivo supera el tamaño máximo del formulario HTML.',
+                UPLOAD_ERR_PARTIAL    => 'El archivo se subió de forma incompleta.',
+                UPLOAD_ERR_NO_FILE    => 'No se detectó ningún archivo.',
+                UPLOAD_ERR_NO_TMP_DIR => 'El servidor no tiene carpeta temporal.',
+                UPLOAD_ERR_CANT_WRITE => 'Fallo al escribir el archivo en el disco del servidor.',
+                UPLOAD_ERR_EXTENSION  => 'Una extensión de PHP bloqueó la subida del archivo.'
+            ];
+
             if (!isset($_FILES['file_cv']) || $_FILES['file_cv']['error'] != UPLOAD_ERR_OK) {
-                $errores[] = 'El archivo CV es obligatorio.';
+                $codigo = $_FILES['file_cv']['error'] ?? UPLOAD_ERR_NO_FILE;
+                $msg_error = $errores_upload[$codigo] ?? "Error desconocido ($codigo)";
+                $errores[] = 'Error en CV: ' . $msg_error;
             }
-             if (!isset($_FILES['file_dni']) || $_FILES['file_dni']['error'] != UPLOAD_ERR_OK) {
-                $errores[] = 'El archivo DNI es obligatorio.';
+            if (!isset($_FILES['file_dni']) || $_FILES['file_dni']['error'] != UPLOAD_ERR_OK) {
+                $codigo = $_FILES['file_dni']['error'] ?? UPLOAD_ERR_NO_FILE;
+                $msg_error = $errores_upload[$codigo] ?? "Error desconocido ($codigo)";
+                $errores[] = 'Error en DNI: ' . $msg_error;
             }
 
             if (!empty($errores)) {
-                $_SESSION['mensaje_error'] = 'Error de validación: ' . implode(' ', $errores);
+                $_SESSION['mensaje_error'] = 'Error de validación: <br>• ' . implode('<br>• ', $errores);
                 header('Location: ' . BASE_URL . '?c=reclutamiento&m=nuevo');
                 exit;
             }
@@ -110,7 +125,6 @@ class ReclutamientoController extends Controller {
                 $practicante_id = $nuevoProceso['practicante_id'];
                 $proceso_id = $nuevoProceso['proceso_id'];
 
-                // Usamos BASE_PATH en lugar de __DIR__ para mayor solidez
                 $ruta_base = BASE_PATH . 'uploads/documentos/';
                 if (!is_dir($ruta_base)) mkdir($ruta_base, 0777, true);
 
@@ -124,7 +138,8 @@ class ReclutamientoController extends Controller {
                 $rutas_locales_subidas = []; 
 
                 foreach ($archivos as $tipo_documento => $archivo) {
-                    if ($archivo && $archivo['error'] == UPLOAD_ERR_OK) {
+                    // Verificamos si existe el archivo y si no tiene errores (para los opcionales)
+                    if ($archivo && isset($archivo['error']) && $archivo['error'] == UPLOAD_ERR_OK) {
                         
                         $nombre_archivo = $practicante_id . '_' . $tipo_documento . '_' . $proceso_id . '.pdf';
                         $ruta_destino = $ruta_base . $nombre_archivo;
@@ -163,10 +178,10 @@ class ReclutamientoController extends Controller {
                     
                     $this->reclutamientoModel->addDocumento($practicante_id, $proceso_id, 'CONSOLIDADO', $url_consolidado_relativa);
 
-                    $_SESSION['mensaje_exito'] = 'Candidato registrado. Documentos subidos y CONSOLIDADOS exitosamente.';
+                    $_SESSION['mensaje_exito'] = 'Candidato registrado. Documentos procesados exitosamente.';
 
                 } catch (\Throwable $e) { 
-                    $_SESSION['mensaje_error'] = 'Error FATAL al unir PDFs: ' . $e->getMessage() . ' en la línea ' . $e->getLine();
+                    $_SESSION['mensaje_error'] = 'Error al unir PDFs: ' . $e->getMessage();
                     header('Location: ' . BASE_URL . '?c=reclutamiento');
                     exit;
                 }
@@ -185,6 +200,7 @@ class ReclutamientoController extends Controller {
     }
 
     public function evaluar() {
+        // ... (Tu código actual de evaluar, sin cambios)
         $proceso_id = (int)($_GET['id'] ?? 0);
 
         if ($proceso_id === 0) {
