@@ -8,115 +8,50 @@ $url_pdf_principal = '';
 foreach ($documentos as $doc) {
     if ($doc['tipo_documento'] == 'CONSOLIDADO') { $url_pdf_principal = $doc['url_archivo']; }
 }
-// Fallback a CV
 if (empty($url_pdf_principal)) {
     foreach ($documentos as $doc) {
         if ($doc['tipo_documento'] == 'CV') { $url_pdf_principal = $doc['url_archivo']; break; }
     }
 }
 
-// --- Fecha de Entrevista ---
 $fecha_entrevista = $proceso['fecha_entrevista'] ?? date('Y-m-d');
-
-// --- Tipo de Práctica (para el JS) ---
-$tipo_practica = $proceso['tipo_practica'] ?? 'PREPROFESIONAL';
 $promedio_general_val = (float)($proceso['promedio_general'] ?? 0); 
+
+// --- DEFINICIÓN ESTRICTA DEL PERFIL ÚNICO ---
+$criterios_fijos = [
+    1 => ['nombre' => 'PROMEDIO (REGISTRO)', 'peso' => 50, 'nota_default' => $promedio_general_val, 'readonly_nota' => true],
+    2 => ['nombre' => 'CONOCIMIENTO EN EL AREA', 'peso' => 12.5, 'nota_default' => '', 'readonly_nota' => false],
+    3 => ['nombre' => 'PRESENCIA PERSONAL', 'peso' => 7.5, 'nota_default' => '', 'readonly_nota' => false],
+    4 => ['nombre' => 'COMUNICACION ASERTIVA', 'peso' => 7.5, 'nota_default' => '', 'readonly_nota' => false],
+    5 => ['nombre' => 'PROACTIVIDAD', 'peso' => 7.5, 'nota_default' => '', 'readonly_nota' => false],
+    6 => ['nombre' => 'HABILIDAD DE RESOLUCION DE PROBLEMAS', 'peso' => 15, 'nota_default' => '', 'readonly_nota' => false]
+];
 ?>
 
 <style>
-    /* Ocultar elementos en pantalla */
-    .print-only {
-        display: none;
-    }
-
+    .print-only { display: none; }
     @media print {
-        @page {
-            size: A4;
-            margin: 20mm; 
-        }
-        body {
-            font-size: 10pt;
-            background-color: #fff;
-        }
-        
-        /* Ocultar UI */
+        @page { size: A4; margin: 20mm; }
+        body { font-size: 10pt; background-color: #fff; }
         .no-imprimir, .no-imprimir * { display: none !important; }
         .print-only { display: block; }
         .form-control { border: none !important; background-color: #f4f4f4 !important; }
         .form-control[readonly] { background-color: #eee !important; }
-
-        /* Mostrar solo la ficha */
         body * { visibility: hidden; }
         #seccion-imprimible, #seccion-imprimible * { visibility: visible; }
-        #seccion-imprimible {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            margin: 0;
-            padding: 0;
-        }
-
-        /* Layout de la Ficha */
-        h1.print-title {
-            text-align: center;
-            font-size: 16pt;
-            margin-bottom: 20px;
-        }
-        
+        #seccion-imprimible { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+        h1.print-title { text-align: center; font-size: 16pt; margin-bottom: 20px; }
         .row.print-stack { display: block !important; }
-        .row.print-stack > [class*="col-"] {
-            width: 100% !important; flex: 0 0 100%; max-width: 100%;
-        }
-
-        /* Tabla de Datos del Candidato */
-        .tabla-ficha {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 15px;
-        }
-        .tabla-ficha th, .tabla-ficha td {
-            border: 1px solid #999;
-            padding: 6px;
-            text-align: left;
-            vertical-align: top;
-        }
-        .tabla-ficha th {
-            background-color: #f0f0f0;
-            width: 25%;
-            font-weight: bold;
-        }
-        .tabla-ficha td {
-            width: 75%;
-        }
-
-        /* Tabla de Criterios */
+        .row.print-stack > [class*="col-"] { width: 100% !important; flex: 0 0 100%; max-width: 100%; }
+        .tabla-ficha { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        .tabla-ficha th, .tabla-ficha td { border: 1px solid #999; padding: 6px; text-align: left; vertical-align: top; }
+        .tabla-ficha th { background-color: #f0f0f0; width: 25%; font-weight: bold; }
         .tabla-criterios { width: 100%; border-collapse: collapse; }
-        .tabla-criterios th, .tabla-criterios td {
-            border: 1px solid #999;
-            padding: 6px;
-            text-align: left;
-        }
+        .tabla-criterios th, .tabla-criterios td { border: 1px solid #999; padding: 6px; text-align: left; }
         .tabla-criterios th { background-color: #f0f0f0; font-weight: bold; }
-        .tabla-criterios td.criterio-nombre { width: 60%; }
-        .tabla-criterios td.criterio-peso { width: 15%; }
-        .tabla-criterios td.criterio-nota { width: 25%; }
-        
-        /* Ocultar campos de input, mostrar solo el valor */
-        .criterio-row input[type="text"], .criterio-row input[type="number"] {
-            display: none; /* Ocultar el input */
-        }
-        .criterio-row .print-value {
-            display: inline !important; /* Mostrar el span */
-            font-family: monospace;
-            padding: 2px 4px;
-            background-color: #f4f4f4;
-        }
-        .form-control.print-textarea {
-             height: 100px; /* Asegurar altura para comentarios */
-        }
-
-        /* Firmas */
+        .criterio-row input[type="text"], .criterio-row input[type="number"] { display: none; }
+        .criterio-row .print-value { display: inline !important; font-family: monospace; padding: 2px 4px; background-color: #f4f4f4; }
+        .form-control.print-textarea { height: 100px; }
         .firmas-container { margin-top: 30px; }
         .firmas-container h5 { text-align: center; margin-bottom: 20px; }
         .firmas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 50px 20px; }
@@ -138,7 +73,6 @@ $promedio_general_val = (float)($proceso['promedio_general'] ?? 0);
 </div>
 
 <?php 
-// Mensajes de sesión (No imprimir)
 if (isset($_SESSION['mensaje_exito'])) {
     echo '<div class="alert alert-success alert-dismissible fade show no-imprimir" role="alert">' . $_SESSION['mensaje_exito'] . '
           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button></div>';
@@ -152,7 +86,6 @@ if (isset($_SESSION['mensaje_error'])) {
 ?>
 
 <div id="seccion-imprimible">
-
     <h1 class="print-only print-title">FICHA DE EVALUACIÓN DE PRACTICANTE</h1>
 
     <form action="index.php?c=reclutamiento&m=guardarEvaluacion" method="POST">
@@ -162,10 +95,8 @@ if (isset($_SESSION['mensaje_error'])) {
             
             <div class="col-lg-4 mb-4">
                 <div class="card sticky-top" style="top: 80px;"> 
-                    
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">Datos del Candidato</h5>
-                        
                         <?php if (!empty($url_pdf_principal)): ?>
                             <button type="button" class="btn btn-sm btn-primary no-imprimir" data-bs-toggle="modal" data-bs-target="#modalVerPDF">
                                 <i class="bi bi-file-earmark-pdf-fill"></i> Ver PDF
@@ -178,34 +109,13 @@ if (isset($_SESSION['mensaje_error'])) {
                     <div class="card-body">
                         <div class="print-only">
                             <table class="tabla-ficha">
-                                <tr>
-                                    <th>Candidato</th>
-                                    <td><?php echo htmlspecialchars($proceso['nombres'] . ' ' . $proceso['apellidos']); ?></td>
-                                </tr>
-                                <tr>
-                                    <th>DNI</th>
-                                    <td><?php echo htmlspecialchars($proceso['dni']); ?></td>
-                                </tr>
-                                 <tr>
-                                    <th>Tipo Práctica</th>
-                                    <td><?php echo htmlspecialchars($proceso['tipo_practica']); ?></td>
-                                </tr>
-                                <tr>
-                                    <th>Universidad</th>
-                                    <td><?php echo htmlspecialchars($proceso['universidad_nombre']); ?></td>
-                                </tr>
-                                <tr>
-                                    <th>Escuela</th>
-                                    <td><?php echo htmlspecialchars($proceso['escuela_nombre']); ?></td>
-                                </tr>
-                                <tr>
-                                    <th>Fecha Entrevista</th>
-                                    <td><span class="print-value"><?php echo date("d/m/Y", strtotime($fecha_entrevista)); ?></span></td>
-                                </tr>
-                                <tr>
-                                    <th>Puntaje Ponderado</th>
-                                    <td><h4 class="mb-0 text-primary"><span class="print-value"><?php echo htmlspecialchars($proceso['puntuacion_final_entrevista'] ?? '0.00'); ?></span></h4></td>
-                                </tr>
+                                <tr><th>Candidato</th><td><?php echo htmlspecialchars($proceso['nombres'] . ' ' . $proceso['apellidos']); ?></td></tr>
+                                <tr><th>DNI</th><td><?php echo htmlspecialchars($proceso['dni']); ?></td></tr>
+                                <tr><th>Tipo Práctica</th><td><?php echo htmlspecialchars($proceso['tipo_practica']); ?></td></tr>
+                                <tr><th>Universidad</th><td><?php echo htmlspecialchars($proceso['universidad_nombre']); ?></td></tr>
+                                <tr><th>Escuela</th><td><?php echo htmlspecialchars($proceso['escuela_nombre']); ?></td></tr>
+                                <tr><th>Fecha Entrevista</th><td><span class="print-value"><?php echo date("d/m/Y", strtotime($fecha_entrevista)); ?></span></td></tr>
+                                <tr><th>Puntaje Ponderado</th><td><h4 class="mb-0 text-primary"><span class="print-value"><?php echo htmlspecialchars($proceso['puntuacion_final_entrevista'] ?? '0.00'); ?></span></h4></td></tr>
                             </table>
                         </div>
                         
@@ -214,14 +124,12 @@ if (isset($_SESSION['mensaje_error'])) {
                             <p class="mb-2"><?php echo htmlspecialchars($proceso['nombres'] . ' ' . $proceso['apellidos']); ?></p>
                             <strong>DNI:</strong>
                             <p class="mb-2"><?php echo htmlspecialchars($proceso['dni']); ?></p>
-                             <strong>Tipo Práctica:</strong>
+                            <strong>Tipo Práctica:</strong>
                             <p class="mb-2"><span class="badge bg-info text-dark"><?php echo htmlspecialchars($proceso['tipo_practica']); ?></span></p>
                             <strong>Escuela:</strong>
                             <p class="mb-2"><?php echo htmlspecialchars($proceso['escuela_nombre']); ?></p>
-                            
                             <strong>Promedio (Registro):</strong> 
                             <p class="mb-2 fw-bold text-danger"><?php echo htmlspecialchars($proceso['promedio_general'] ?? 'N/A'); ?></p>
-
                             <hr>
                             <strong>Puntaje Ponderado:</strong>
                             <h4 class="mb-0 text-primary" id="puntaje-calculado">
@@ -230,22 +138,12 @@ if (isset($_SESSION['mensaje_error'])) {
                         </div>
                     </div>
                 </div>
-
-                </div> 
+            </div> 
             
             <div class="col-lg-8 mb-4">
                 <div class="card">
                     <div class="card-header">
-                        <div class="row align-items-center">
-                            <div class="col-6"><h5 class="mb-0">Criterios de Evaluación</h5></div>
-                            <div class="col-6 text-end no-imprimir">
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-outline-primary" id="btn-perfil-pre">Perfil PRE</button>
-                                    <button type="button" class="btn btn-outline-primary" id="btn-perfil-pro">Perfil PRO</button>
-                                    <button type="button" class="btn btn-outline-secondary" id="btn-perfil-custom">Personalizado</button>
-                                </div>
-                            </div>
-                        </div>
+                        <h5 class="mb-0">Criterios de Evaluación</h5>
                     </div>
                     
                     <div class="card-body">
@@ -264,15 +162,11 @@ if (isset($_SESSION['mensaje_error'])) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php for ($i = 1; $i <= 10; $i++): 
-                                        $nombre_val = $proceso['campo_' . $i . '_nombre'] ?? '';
-                                        $peso_val = $proceso['campo_' . $i . '_peso'] ?? '';
-                                        $nota_val = $proceso['campo_' . $i . '_nota'] ?? '';
-                                    ?>
-                                    <tr class="criterio-row" id="criterio-print-<?php echo $i; ?>">
-                                        <td><span class="print-value"><?php echo htmlspecialchars($nombre_val); ?></span></td>
-                                        <td><span class="print-value"><?php echo htmlspecialchars($peso_val); ?></span></td>
-                                        <td><span class="print-value"><?php echo htmlspecialchars($nota_val); ?></span></td>
+                                    <?php for ($i = 1; $i <= 6; $i++): ?>
+                                    <tr class="criterio-row">
+                                        <td><span class="print-value"><?php echo htmlspecialchars($criterios_fijos[$i]['nombre']); ?></span></td>
+                                        <td><span class="print-value"><?php echo htmlspecialchars($criterios_fijos[$i]['peso']); ?></span></td>
+                                        <td><span class="print-value"><?php echo htmlspecialchars($proceso['campo_' . $i . '_nota'] ?? ($i == 1 ? $criterios_fijos[1]['nota_default'] : '')); ?></span></td>
                                     </tr>
                                     <?php endfor; ?>
                                 </tbody>
@@ -289,37 +183,40 @@ if (isset($_SESSION['mensaje_error'])) {
                                     </tr>
                                 </thead>
                                 <tbody id="tbody-criterios">
-                                <?php for ($i = 1; $i <= 10; $i++): 
+                                <?php 
+                                // Renderizar solo los 6 campos fijos
+                                for ($i = 1; $i <= 6; $i++): 
                                     $nombre_key = 'campo_' . $i . '_nombre';
                                     $nota_key = 'campo_' . $i . '_nota';
                                     $peso_key = 'campo_' . $i . '_peso';
                                     
-                                    $nombre_val = $proceso[$nombre_key] ?? '';
-                                    $nota_val = $proceso[$nota_key] ?? '';
-                                    $peso_val = $proceso[$peso_key] ?? '';
+                                    // Notas: Si está en BD lo usa, sino el default
+                                    $nota_db = $proceso[$nota_key] ?? null;
+                                    $nota_val = ($nota_db !== null && $nota_db !== '') ? $nota_db : $criterios_fijos[$i]['nota_default'];
                                 ?>
-                                <tr class="criterio-row" id="criterio-row-<?php echo $i; ?>">
+                                <tr class="criterio-row">
                                     <td>
-                                        <input type="text" class="form-control form-control-sm criterio-nombre" 
+                                        <input type="text" class="form-control form-control-sm criterio-nombre bg-light" 
                                                id="<?php echo $nombre_key; ?>" name="<?php echo $nombre_key; ?>" 
-                                               value="<?php echo htmlspecialchars($nombre_val); ?>">
+                                               value="<?php echo htmlspecialchars($criterios_fijos[$i]['nombre']); ?>" readonly>
                                     </td>
                                     <td>
-                                        <input type="number" class="form-control form-control-sm criterio-peso" 
+                                        <input type="number" class="form-control form-control-sm criterio-peso bg-light" 
                                                id="<?php echo $peso_key; ?>" name="<?php echo $peso_key; ?>" 
-                                               placeholder="%" step="0.1" min="0" max="100"
-                                               value="<?php echo htmlspecialchars($peso_val); ?>">
+                                               value="<?php echo htmlspecialchars($criterios_fijos[$i]['peso']); ?>" readonly>
                                     </td>
                                     <td>
                                         <input type="number" class="form-control form-control-sm criterio-nota" 
                                                id="<?php echo $nota_key; ?>" name="<?php echo $nota_key; ?>" 
                                                placeholder="Nota" step="0.1" min="0" max="20"
-                                               value="<?php echo htmlspecialchars($nota_val); ?>">
+                                               value="<?php echo htmlspecialchars($nota_val); ?>"
+                                               <?php echo $criterios_fijos[$i]['readonly_nota'] ? 'readonly class="form-control form-control-sm bg-light"' : ''; ?>>
                                     </td>
                                 </tr>
                                 <?php endfor; ?>
                                 </tbody>
                             </table>
+                            
                             <div class="text-end">
                                 <strong>Total Peso: <span id="total-peso">0</span>%</strong>
                                 <div id="peso-error" class="text-danger small d-none">El peso debe sumar 100%</div>
@@ -376,217 +273,33 @@ if (isset($_SESSION['mensaje_error'])) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    
-    // --- Perfiles Definidos ---
-    const perfil_evaluacion = [
-        { nombre: "CONOCIMIENTO EN EL AREA", peso: 12.5 },
-        { nombre: "PRESENCIA PERSONAL", peso: 7.5 },
-        { nombre: "COMUNICACION ASERTIVA", peso: 7.5 },
-        { nombre: "PROACTIVIDAD", peso: 7.5 },
-        { nombre: "HABILIDAD DE RESOLUCION DE PROBLEMAS", peso: 15 }
-    ];
-    const perfil_pre = perfil_evaluacion; 
-    const perfil_pro = perfil_evaluacion;
-
-    // --- Variables PHP pasadas a JS ---
-    const tipoPracticaPHP = "<?php echo $tipo_practica; ?>";
-    const promedioGeneralPHP = <?php echo $promedio_general_val; ?>;
-    
-    // --- Selectores de Inputs ---
-    const todasLasFilas = document.querySelectorAll('.criterio-row'); // Filas <tr> (Son 20 en total: 10 print + 10 form)
-    const formFilas = document.querySelectorAll('#tbody-criterios .criterio-row'); // Solo las 10 del formulario
-    const inputNombres = document.querySelectorAll('.criterio-nombre');
     const inputPesos = document.querySelectorAll('.criterio-peso');
     const inputNotas = document.querySelectorAll('.criterio-nota');
     
-    /**
-     * Llena el formulario con un perfil (PRE/PRO) - 6 CAMPOS (Promedio + 5 del perfil)
-     */
-    function aplicarPerfil(perfil, promedio) {
-        
-        // 1. Cargar el Promedio General como Criterio 1 (50%)
-        if (inputNombres[0]) inputNombres[0].value = 'PROMEDIO (REGISTRO)';
-        if (inputPesos[0]) inputPesos[0].value = 50;
-        if (inputNotas[0]) inputNotas[0].value = (inputNotas[0].value && inputNotas[0].value != '0') ? inputNotas[0].value : promedio;
-        
-        // Activar Criterio 1
-        if (formFilas[0]) formFilas[0].classList.remove('d-none');
-        if (inputNombres[0]) { inputNombres[0].readOnly = true; inputNombres[0].disabled = false; }
-        if (inputPesos[0]) { inputPesos[0].readOnly = true; inputPesos[0].disabled = false; }
-        if (inputNotas[0]) { inputNotas[0].readOnly = true; inputNotas[0].disabled = false; }
-
-
-        // 2. Llenar los campos del perfil (del índice 1 al 5)
-        perfil.forEach((criterio, index) => {
-            let i = index + 1; // Índice 1 a 5 (Filas 2 a 6)
-            
-            if (inputNombres[i]) inputNombres[i].value = criterio.nombre;
-            if (inputPesos[i]) inputPesos[i].value = criterio.peso;
-            
-            // Activar Criterio
-            if (formFilas[i]) formFilas[i].classList.remove('d-none');
-            
-            // Bloquear Nombre y Peso, desbloquear Nota
-            if (inputNombres[i]) { inputNombres[i].readOnly = true; inputNombres[i].disabled = false; }
-            if (inputPesos[i]) { inputPesos[i].readOnly = true; inputPesos[i].disabled = false; }
-            if (inputNotas[i]) { inputNotas[i].readOnly = false; inputNotas[i].disabled = false; }
-        });
-        
-        // 3. DESACTIVAR Y OCULTAR filas restantes (del índice 6 al 9)
-        for (let i = 6; i < 10; i++) { 
-            if (formFilas[i]) formFilas[i].classList.add('d-none');
-            
-            // Limpiar y DESHABILITAR (Para que JS no las lea y PHP no las reciba)
-            if(inputNombres[i]) { inputNombres[i].value = ''; inputNombres[i].disabled = true; }
-            if(inputPesos[i]) { inputPesos[i].value = ''; inputPesos[i].disabled = true; }
-            if(inputNotas[i]) { inputNotas[i].value = ''; inputNotas[i].disabled = true; }
-        }
-    }
-
-    /**
-     * Muestra todos los campos (10) pero preserva el Criterio 1 (Promedio)
-     */
-    function aplicarPerfilPersonalizado() {
-        
-        // 1. Cargar el Promedio General como Criterio 1
-        if (inputNombres[0]) inputNombres[0].value = 'PROMEDIO (REGISTRO)';
-        if (inputPesos[0]) inputPesos[0].value = (inputPesos[0].value == '50' || !inputPesos[0].value) ? 50 : inputPesos[0].value;
-        if (inputNotas[0]) inputNotas[0].value = (inputNotas[0].value && inputNotas[0].value != '0') ? inputNotas[0].value : promedioGeneralPHP;
-        
-        // Activar y Bloquear Nombre/Nota, Desbloquear Peso
-        if (formFilas[0]) formFilas[0].classList.remove('d-none');
-        if (inputNombres[0]) { inputNombres[0].readOnly = true; inputNombres[0].disabled = false; }
-        if (inputPesos[0]) { inputPesos[0].readOnly = false; inputPesos[0].disabled = false; } 
-        if (inputNotas[0]) { inputNotas[0].readOnly = true; inputNotas[0].disabled = false; } 
-
-        // 2. Mostrar y desbloquear del índice 1 al 9
-        for (let i = 1; i < 10; i++) {
-            if (formFilas[i]) formFilas[i].classList.remove('d-none');
-            
-            // Activar y Desbloquear Nombre, Peso y Nota
-            if (inputNombres[i]) { 
-                if (!inputNombres[i].value) inputNombres[i].value = `Criterio ${i+1}`;
-                inputNombres[i].readOnly = false;
-                inputNombres[i].disabled = false;
-            }
-            if (inputPesos[i]) { 
-                 inputPesos[i].readOnly = false;
-                 inputPesos[i].disabled = false;
-            }
-            if (inputNotas[i]) { 
-                inputNotas[i].readOnly = false;
-                inputNotas[i].disabled = false;
-            }
-        }
-    }
-
-    /**
-     * Calcula el puntaje ponderado en vivo
-     */
     function calcularPuntaje() {
         let sumaPonderada = 0;
         let sumaPesosTotal = 0;
         
-        for (let i = 0; i < 10; i++) {
-            // SOLO contar si el input NO está desactivado
-            if (inputNotas[i] && !inputNotas[i].disabled) {
-                let nota = parseFloat(inputNotas[i].value) || 0;
-                let peso = parseFloat(inputPesos[i].value) || 0;
-                
-                if (nota >= 0 && peso > 0) {
-                    sumaPonderada += nota * peso;
-                    sumaPesosTotal += peso;
-                }
+        for (let i = 0; i < inputNotas.length; i++) {
+            let nota = parseFloat(inputNotas[i].value) || 0;
+            let peso = parseFloat(inputPesos[i].value) || 0;
+            
+            if (nota >= 0 && peso > 0) {
+                sumaPonderada += nota * peso;
+                sumaPesosTotal += peso;
             }
         }
         
         let promedio = (sumaPesosTotal > 0) ? (sumaPonderada / sumaPesosTotal) : 0;
-        
         document.getElementById('puntaje-calculado').textContent = promedio.toFixed(2);
         
         const totalPesoSpan = document.getElementById('total-peso');
-        const pesoErrorDiv = document.getElementById('peso-error');
-        totalPesoSpan.textContent = sumaPesosTotal.toFixed(1); // Un decimal para mejor lectura
-
-        // Validar que sume exactamente 100
-        if (sumaPesosTotal > 0 && Math.abs(sumaPesosTotal - 100) > 0.01) { 
-            totalPesoSpan.classList.add('text-danger');
-            pesoErrorDiv.classList.remove('d-none');
-        } else {
-            totalPesoSpan.classList.remove('text-danger');
-            pesoErrorDiv.classList.add('d-none');
-        }
+        totalPesoSpan.textContent = sumaPesosTotal.toFixed(1); 
     }
 
-    // --- Controladores de Botones Activos ---
-    const botonesPerfil = document.querySelectorAll('.btn-group .btn');
-    function setBotonActivo(botonActivo) {
-        botonesPerfil.forEach(btn => btn.classList.remove('active'));
-        botonActivo.classList.add('active');
-    }
-
-    // --- Event Listeners ---
-    document.getElementById('btn-perfil-pre').addEventListener('click', function() {
-        aplicarPerfil(perfil_pre, promedioGeneralPHP);
-        calcularPuntaje();
-        setBotonActivo(this);
-    });
-    document.getElementById('btn-perfil-pro').addEventListener('click', function() {
-        aplicarPerfil(perfil_pro, promedioGeneralPHP);
-        calcularPuntaje();
-        setBotonActivo(this);
-    });
-    document.getElementById('btn-perfil-custom').addEventListener('click', function() {
-        aplicarPerfilPersonalizado();
-        calcularPuntaje();
-        setBotonActivo(this);
-    });
-    
     inputNotas.forEach(input => input.addEventListener('input', calcularPuntaje));
-    inputPesos.forEach(input => input.addEventListener('input', calcularPuntaje));
 
-    // --- Carga Inicial ---
-    const primerCriterio = document.getElementById('campo_1_nombre').value;
-    
-    let esPerfilNuevo = primerCriterio === 'PROMEDIO (REGISTRO)' || primerCriterio === '';
-    let camposConNombre = 0;
-    
-    for (let i = 0; i < 10; i++) {
-        if (inputNombres[i] && inputNombres[i].value && inputNombres[i].value.trim() !== '') {
-            camposConNombre++;
-        }
-    }
-
-    // Lógica para determinar qué perfil cargar al iniciar
-    if (camposConNombre > 6) { 
-        // Si hay más de 6 campos guardados, es personalizado
-        aplicarPerfilPersonalizado();
-        document.getElementById('btn-perfil-custom').classList.add('active');
-    } else if (camposConNombre === 6 || esPerfilNuevo) { 
-        // Si tiene exactamente 6 (Promedio + 5) o es nuevo
-        if (tipoPracticaPHP === 'PREPROFESIONAL') {
-            aplicarPerfil(perfil_pre, promedioGeneralPHP);
-            document.getElementById('btn-perfil-pre').classList.add('active');
-        } else {
-            aplicarPerfil(perfil_pro, promedioGeneralPHP);
-            document.getElementById('btn-perfil-pro').classList.add('active');
-        }
-    } else {
-        // En cualquier otro caso raro, abrimos todo para que el usuario arregle
-        aplicarPerfilPersonalizado();
-        document.getElementById('btn-perfil-custom').classList.add('active');
-    }
-    
-    // Ocultar las filas de impresión vacías para que el PDF salga limpio
-    for(let i = 1; i <= 10; i++) {
-        let nombrePrint = document.querySelector(`#criterio-print-${i} td:nth-child(1) span`).textContent;
-        if(nombrePrint.trim() === '') {
-            let filaPrint = document.getElementById(`criterio-print-${i}`);
-            if(filaPrint) filaPrint.style.display = 'none';
-        }
-    }
-
-    // Calcular puntaje inicial
+    // Calcular puntaje al cargar la página
     calcularPuntaje();
 });
 </script>

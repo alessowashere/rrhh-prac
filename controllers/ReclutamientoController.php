@@ -110,7 +110,6 @@ class ReclutamientoController extends Controller {
                 $codigo = $_FILES['file_dni']['error'] ?? UPLOAD_ERR_NO_FILE;
                 $errores[] = 'Error en DNI: ' . ($errores_upload[$codigo] ?? "Error ($codigo)");
             }
-            // Validar que el JS haya enviado el consolidado
             if (!isset($_FILES['file_consolidado']) || $_FILES['file_consolidado']['error'] != UPLOAD_ERR_OK) {
                 $errores[] = 'Error: No se recibió el archivo CONSOLIDADO generado.';
             }
@@ -129,18 +128,16 @@ class ReclutamientoController extends Controller {
                 $ruta_base = BASE_PATH . 'uploads/documentos/';
                 if (!is_dir($ruta_base)) mkdir($ruta_base, 0777, true);
 
-                // Recibimos todos los archivos, incluyendo el CONSOLIDADO creado en JS
                 $archivos = [
                     'CARTA_PRESENTACION' => $_FILES['file_carta'] ?? null, 
                     'DNI' => $_FILES['file_dni'],                        
                     'CV' => $_FILES['file_cv'],                           
                     'DECLARACIONES' => $_FILES['file_ddjj'] ?? null,
-                    'CONSOLIDADO' => $_FILES['file_consolidado'] // Mágicamente procesado por JS
+                    'CONSOLIDADO' => $_FILES['file_consolidado']
                 ];
 
                 foreach ($archivos as $tipo_documento => $archivo) {
                     if ($archivo && isset($archivo['error']) && $archivo['error'] == UPLOAD_ERR_OK) {
-                        
                         $nombre_archivo = $practicante_id . '_' . $tipo_documento . '_' . $proceso_id . '.pdf';
                         $ruta_destino = $ruta_base . $nombre_archivo;
                         
@@ -200,7 +197,7 @@ class ReclutamientoController extends Controller {
             
             $datosEntrevista = [
                 'proceso_id' => $proceso_id,
-                'comentarios' => trim($_POST['comentarios_adicionales'] ?? ''), // Cambiado para que el modelo lo reconozca
+                'comentarios' => trim($_POST['comentarios_adicionales'] ?? ''), // Mapeo correcto para el Modelo
                 'fecha_entrevista' => trim($_POST['fecha_entrevista'] ?? date('Y-m-d'))
             ];
 
@@ -212,17 +209,17 @@ class ReclutamientoController extends Controller {
                 $nota_key = 'campo_' . $i . '_nota';
                 $peso_key = 'campo_' . $i . '_peso'; 
 
-                // Si el campo viene vacío o no viene (porque está disabled), le asignamos null
-                $datosEntrevista[$nombre_key] = trim($_POST[$nombre_key] ?? '') ?: null;
+                // Extraer con seguridad, asignando vacíos y ceros absolutos si no existen
+                $nombre_val = trim($_POST[$nombre_key] ?? '');
+                $nota_val = $_POST[$nota_key] ?? '';
+                $peso_val = $_POST[$peso_key] ?? '';
                 
-                $nota_val = $_POST[$nota_key] ?? null;
-                $peso_val = $_POST[$peso_key] ?? null;
-                
-                $datosEntrevista[$nota_key] = ($nota_val !== '' && $nota_val !== null) ? (float)$nota_val : null;
-                $datosEntrevista[$peso_key] = ($peso_val !== '' && $peso_val !== null) ? (float)$peso_val : null;
+                // Evitamos el NULL para que MySQL no rechace la transacción en modo estricto
+                $datosEntrevista[$nombre_key] = $nombre_val;
+                $datosEntrevista[$nota_key] = ($nota_val !== '') ? (float)$nota_val : 0;
+                $datosEntrevista[$peso_key] = ($peso_val !== '') ? (float)$peso_val : 0;
 
-                // Solo sumamos si hay nota y peso válidos
-                if ($datosEntrevista[$nota_key] !== null && $datosEntrevista[$nota_key] >= 0 && $datosEntrevista[$peso_key] !== null && $datosEntrevista[$peso_key] > 0) {
+                if ($datosEntrevista[$nota_key] >= 0 && $datosEntrevista[$peso_key] > 0) {
                     $suma_ponderada += $datosEntrevista[$nota_key] * $datosEntrevista[$peso_key];
                     $suma_pesos_total += $datosEntrevista[$peso_key];
                 }
@@ -232,7 +229,6 @@ class ReclutamientoController extends Controller {
             $datosEntrevista['puntuacion_final'] = round($promedio, 2);
 
             try {
-                // Ahora sí se ejecutarán todas las actualizaciones sin detenerse
                 $this->reclutamientoModel->actualizarEntrevista($datosEntrevista);
                 $this->reclutamientoModel->actualizarFechaEntrevista($proceso_id, $datosEntrevista['fecha_entrevista']);
                 $this->reclutamientoModel->cambiarEstadoProceso($proceso_id, 'Evaluado');
