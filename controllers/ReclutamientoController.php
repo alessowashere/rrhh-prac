@@ -193,11 +193,19 @@ class ReclutamientoController extends Controller {
     public function guardarEvaluacion() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
-            $proceso_id = (int)($_POST['proceso_id'] ?? 0);
+            // 1. Capturar ID estrictamente
+            $proceso_id = isset($_POST['proceso_id']) && $_POST['proceso_id'] !== '' ? (int)$_POST['proceso_id'] : 0;
+            
+            // 2. ABORTAR SI EL ID ES 0 (Evita el fallo silencioso)
+            if ($proceso_id <= 0) {
+                $_SESSION['mensaje_error'] = 'Error Crítico: No se recibió un ID de proceso válido. Valor recibido: ' . $_POST['proceso_id'];
+                header('Location: ' . BASE_URL . '?c=reclutamiento');
+                exit;
+            }
             
             $datosEntrevista = [
                 'proceso_id' => $proceso_id,
-                'comentarios' => trim($_POST['comentarios_adicionales'] ?? ''), // Mapeo correcto para el Modelo
+                'comentarios' => trim($_POST['comentarios_adicionales'] ?? ''),
                 'fecha_entrevista' => trim($_POST['fecha_entrevista'] ?? date('Y-m-d'))
             ];
 

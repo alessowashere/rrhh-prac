@@ -150,66 +150,72 @@ class ReclutamientoModel extends Model {
         return $stmt->fetch();
     }
 
-    public function actualizarEntrevista(array $data) {
-        $this->db->beginTransaction();
-        
-        try {
-            $sql_res = "UPDATE ResultadosEntrevista SET
-                            campo_1_nombre = ?, campo_1_nota = ?, campo_1_peso = ?,
-                            campo_2_nombre = ?, campo_2_nota = ?, campo_2_peso = ?,
-                            campo_3_nombre = ?, campo_3_nota = ?, campo_3_peso = ?,
-                            campo_4_nombre = ?, campo_4_nota = ?, campo_4_peso = ?,
-                            campo_5_nombre = ?, campo_5_nota = ?, campo_5_peso = ?,
-                            campo_6_nombre = ?, campo_6_nota = ?, campo_6_peso = ?,
-                            campo_7_nombre = ?, campo_7_nota = ?, campo_7_peso = ?,
-                            campo_8_nombre = ?, campo_8_nota = ?, campo_8_peso = ?,
-                            campo_9_nombre = ?, campo_9_nota = ?, campo_9_peso = ?,
-                            campo_10_nombre = ?, campo_10_nota = ?, campo_10_peso = ?,
-                            comentarios_adicionales = ?
-                        WHERE proceso_id = ?";
-            
-            $stmt_res = $this->db->prepare($sql_res);
-            $stmt_res->execute([
-                $data['campo_1_nombre'], $data['campo_1_nota'], $data['campo_1_peso'],
-                $data['campo_2_nombre'], $data['campo_2_nota'], $data['campo_2_peso'],
-                $data['campo_3_nombre'], $data['campo_3_nota'], $data['campo_3_peso'],
-                $data['campo_4_nombre'], $data['campo_4_nota'], $data['campo_4_peso'],
-                $data['campo_5_nombre'], $data['campo_5_nota'], $data['campo_5_peso'],
-                $data['campo_6_nombre'], $data['campo_6_nota'], $data['campo_6_peso'],
-                $data['campo_7_nombre'], $data['campo_7_nota'], $data['campo_7_peso'],
-                $data['campo_8_nombre'], $data['campo_8_nota'], $data['campo_8_peso'],
-                $data['campo_9_nombre'], $data['campo_9_nota'], $data['campo_9_peso'],
-                $data['campo_10_nombre'], $data['campo_10_nota'], $data['campo_10_peso'],
-                $data['comentarios'],
-                $data['proceso_id']
-            ]);
+    public function actualizarEntrevista($datos) {
+        // 1. PASO A: Verificar si ya existen notas para este proceso_id
+        $sqlCheck = "SELECT resultado_id FROM ResultadosEntrevista WHERE proceso_id = :proceso_id";
+        $stmtCheck = $this->db->prepare($sqlCheck);
+        $stmtCheck->execute([':proceso_id' => $datos['proceso_id']]);
+        $existe = $stmtCheck->fetchColumn();
 
-            $sql_proc = "UPDATE ProcesosReclutamiento SET 
-                            puntuacion_final_entrevista = ? 
-                         WHERE proceso_id = ?";
-            
-            $stmt_proc = $this->db->prepare($sql_proc);
-            $stmt_proc->execute([$data['puntuacion_final'], $data['proceso_id']]);
-
-            $this->db->commit();
-            return true;
-
-        } catch (Exception $e) {
-            $this->db->rollBack();
-            throw new Exception("Error al actualizar entrevista: " . $e->getMessage());
+        // 2. PASO B: Insertar o Actualizar en la tabla ResultadosEntrevista
+        if ($existe) {
+            $sql = "UPDATE ResultadosEntrevista SET 
+                    comentarios_adicionales = :comentarios,
+                    campo_1_nombre = :c1_nom, campo_1_nota = :c1_nota,
+                    campo_2_nombre = :c2_nom, campo_2_nota = :c2_nota,
+                    campo_3_nombre = :c3_nom, campo_3_nota = :c3_nota,
+                    campo_4_nombre = :c4_nom, campo_4_nota = :c4_nota,
+                    campo_5_nombre = :c5_nom, campo_5_nota = :c5_nota,
+                    campo_6_nombre = :c6_nom, campo_6_nota = :c6_nota
+                    WHERE proceso_id = :proceso_id";
+        } else {
+            $sql = "INSERT INTO ResultadosEntrevista 
+                    (proceso_id, comentarios_adicionales,
+                    campo_1_nombre, campo_1_nota,
+                    campo_2_nombre, campo_2_nota,
+                    campo_3_nombre, campo_3_nota,
+                    campo_4_nombre, campo_4_nota,
+                    campo_5_nombre, campo_5_nota,
+                    campo_6_nombre, campo_6_nota)
+                    VALUES 
+                    (:proceso_id, :comentarios,
+                    :c1_nom, :c1_nota, :c2_nom, :c2_nota,
+                    :c3_nom, :c3_nota, :c4_nom, :c4_nota,
+                    :c5_nom, :c5_nota, :c6_nom, :c6_nota)";
         }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->bindValue(':proceso_id', $datos['proceso_id'], PDO::PARAM_INT);
+        $stmt->bindValue(':comentarios', $datos['comentarios']); // Mapeado correctamente a comentarios_adicionales
+
+        for ($i = 1; $i <= 6; $i++) {
+            $stmt->bindValue(':c'.$i.'_nom',  $datos['campo_'.$i.'_nombre']);
+            $stmt->bindValue(':c'.$i.'_nota', $datos['campo_'.$i.'_nota']);
+            // NOTA: Ignoramos silenciosamente los pesos ('campo_X_peso') 
+            // del controlador porque no existen columnas para eso en bd.sql
+        }
+        $stmt->execute();
+        
+        // 3. PASO C: Guardar la Nota Final en la tabla ProcesosReclutamiento
+        $sqlProceso = "UPDATE ProcesosReclutamiento 
+                       SET puntuacion_final_entrevista = :puntuacion
+                       WHERE proceso_id = :proceso_id";
+        $stmtProceso = $this->db->prepare($sqlProceso);
+        $stmtProceso->bindValue(':puntuacion', $datos['puntuacion_final']);
+        $stmtProceso->bindValue(':proceso_id', $datos['proceso_id'], PDO::PARAM_INT);
+        $stmtProceso->execute();
     }
 
-    public function cambiarEstadoProceso(int $proceso_id, string $nuevo_estado) {
-        $sql = "UPDATE ProcesosReclutamiento SET estado_proceso = ? WHERE proceso_id = ?";
+    public function cambiarEstadoProceso($proceso_id, $estado) {
+        $sql = "UPDATE ProcesosReclutamiento SET estado_proceso = :estado WHERE proceso_id = :id";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$nuevo_estado, $proceso_id]);
+        $stmt->execute([':estado' => $estado, ':id' => $proceso_id]);
     }
 
-    public function actualizarFechaEntrevista(int $proceso_id, string $fecha) {
-        $sql = "UPDATE ProcesosReclutamiento SET fecha_entrevista = ? WHERE proceso_id = ?";
+    public function actualizarFechaEntrevista($proceso_id, $fecha) {
+        $sql = "UPDATE ProcesosReclutamiento SET fecha_entrevista = :fecha WHERE proceso_id = :id";
         $stmt = $this->db->prepare($sql);
-        return $stmt->execute([$fecha, $proceso_id]);
+        $stmt->execute([':fecha' => $fecha, ':id' => $proceso_id]);
     }
 
     public function getDocumentosPorProceso(int $proceso_id) {

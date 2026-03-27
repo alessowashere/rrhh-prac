@@ -89,7 +89,7 @@ if (isset($_SESSION['mensaje_error'])) {
     <h1 class="print-only print-title">FICHA DE EVALUACIÓN DE PRACTICANTE</h1>
 
     <form action="index.php?c=reclutamiento&m=guardarEvaluacion" method="POST">
-        <input type="hidden" name="proceso_id" value="<?php echo $proceso['proceso_id']; ?>">
+        <input type="hidden" name="proceso_id" value="<?php echo htmlspecialchars($proceso['id'] ?? $proceso['proceso_id'] ?? $_GET['id'] ?? 0); ?>">
         
         <div class="row print-stack">
             
